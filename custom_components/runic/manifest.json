@@ -1,0 +1,16 @@
+{
+  "domain": "runic",
+  "name": "Runic.io",
+  "codeowners": [
+    "@martineo14"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "webhook"
+  ],
+  "documentation": "https://github.com/martineo14/ha-runic",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/martineo14/ha-runic/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
