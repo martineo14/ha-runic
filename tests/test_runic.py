@@ -19,6 +19,7 @@ from custom_components.runic.const import (
     DOMAIN,
     EVENT_RUNIC,
 )
+from custom_components.runic.coordinator import is_moving
 from custom_components.runic.signature import verify_signature
 
 SECRET = "whsec_" + base64.b64encode(b"0123456789abcdef0123456789abcdef").decode()
@@ -30,10 +31,23 @@ VEHICLES = {
             "latitude": 45.0,
             "longitude": 12.0,
             "timestamp": 1785879671,
-            "status": "STOP",
+            "status": "RUN",
         }
     ]
 }
+
+
+def details(speed: float, age: int = 30) -> dict:
+    """GET /vehicles/{id}: a parked tracker still reports RUN while it sends heartbeats."""
+    return {
+        "vehicle": {
+            **VEHICLES["vehicles"][0],
+            "plate": "AB123CD",
+            "speed": speed,
+            "heading": 117,
+            "timestamp": int(time.time()) - age,
+        }
+    }
 ALERT = {
     "id": "evt_44133984",
     "type": "alert.movement",
@@ -70,6 +84,15 @@ def test_signature():
     assert verify_signature(SECRET, headers, body)
 
 
+def test_is_moving():
+    now = time.time()
+    assert is_moving({"speed": 0, "timestamp": now, "status": "RUN"}, now) is False
+    assert is_moving({"speed": 4, "timestamp": now}, now) is False
+    assert is_moving({"speed": 42, "timestamp": now}, now) is True
+    assert is_moving({"speed": 42, "timestamp": now - 3600}, now) is False
+    assert is_moving({"status": "RUN"}, now) is None
+
+
 async def test_config_flow(hass: HomeAssistant, aioclient_mock):
     aioclient_mock.get(f"{API_BASE}/vehicles", status=401)
     result = await hass.config_entries.flow.async_init(
@@ -97,6 +120,7 @@ async def test_config_flow(hass: HomeAssistant, aioclient_mock):
 
 async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aioclient_mock, hass_client_no_auth):
     aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
@@ -105,9 +129,13 @@ async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aiocli
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
+    # Parked, sending heartbeats: Runic says RUN, but the speed is 0.
     tracker = hass.states.get("device_tracker.van_12")
     assert tracker.attributes["latitude"] == 45.0
-    assert hass.states.get("binary_sensor.van_12_moving").state == "off"
+    moving = hass.states.get("binary_sensor.van_12_moving")
+    assert moving.state == "off"
+    assert moving.attributes["runic_status"] == "RUN"
+    assert hass.states.get("sensor.van_12_speed").state == "0"
 
     events = async_capture_events(hass, EVENT_RUNIC)
     client = await hass_client_no_auth()
@@ -115,7 +143,13 @@ async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aiocli
 
     resp = await client.post("/api/webhook/hook123", data=body, headers={"webhook-id": "x"})
     assert resp.status == 401
+    resp = await client.post("/api/webhook/hook123", data=b"[]", headers=sign(b"[]"))
+    assert resp.status == 400
 
+    # The movement alert alone doesn't mean moving: the refresh it triggers reads the speed.
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=38))
     for _ in range(2):  # second delivery is a retry and must be dropped
         resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body))
         assert resp.status == 200
@@ -124,5 +158,5 @@ async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aiocli
     assert len(events) == 1
     assert events[0].data["type"] == "alert.movement"
     assert events[0].data["plate"] == "AB123CD"
-    assert hass.states.get("device_tracker.van_12").attributes["latitude"] == 45.057208
     assert hass.states.get("binary_sensor.van_12_moving").state == "on"
+    assert hass.states.get("sensor.van_12_speed").state == "38"

@@ -21,7 +21,7 @@ from .coordinator import RunicCoordinator
 from .signature import verify_signature
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.SENSOR]
 
 
 @dataclass
@@ -67,7 +67,14 @@ def _make_handler(entry: RunicConfigEntry):
             # 401 is a permanent refusal for Runic after 3 attempts.
             return web.Response(status=401)
 
-        alert = json.loads(raw)
+        try:
+            alert = json.loads(raw)
+        except ValueError:
+            alert = None
+        if not (isinstance(alert, dict) and "id" in alert and "type" in alert):
+            # Signed but unreadable: a 4xx stops Runic retrying for a day.
+            _LOGGER.warning("Ignored a Runic webhook without a readable alert")
+            return web.Response(status=400)
         _LOGGER.debug("Runic alert: %s", alert)
 
         data = entry.runtime_data

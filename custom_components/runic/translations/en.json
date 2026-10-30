@@ -4,18 +4,29 @@
       "user": {
         "title": "Runic.io API",
         "description": "Enter the API token issued by Runic Support (runic@runic.io).",
-        "data": { "api_token": "API token" }
+        "data": {
+          "api_token": "API token"
+        }
       },
       "webhook": {
         "title": "Runic.io webhook",
         "description": "1. Open [Runic webhooks]({portal_url}) and add an endpoint with this URL:\n\n`{webhook_url}`\n\n2. Select the alert types you want in Home Assistant.\n3. Paste the signing secret (`whsec_…`) below.\n\nAlerts only fire for vehicles covered by an alert rule in the Runic app.",
-        "data": { "signing_secret": "Signing secret" }
+        "data": {
+          "signing_secret": "Signing secret"
+        }
       }
     },
     "error": {
       "invalid_auth": "Runic rejected the API token.",
       "cannot_connect": "Could not reach api.runic.io.",
       "invalid_secret": "The signing secret starts with whsec_."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "speed": {
+        "name": "Speed"
+      }
     }
   }
 }

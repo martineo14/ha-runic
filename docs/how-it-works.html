@@ -108,7 +108,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">martineo14/ha-runic · v0.1.0</span>
+    <span class="eyebrow">martineo14/ha-runic · v0.2.0</span>
     <h1>What the Runic.io integration does</h1>
     <p class="muted">It connects your Runic GPS trackers to Home Assistant in two ways: it reads where each vehicle is, and it passes Runic alerts (started moving, entered a zone, theft…) to your automations within seconds.</p>
   </header>
@@ -153,9 +153,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <div class="path">
         <span class="eyebrow">Every 5 minutes</span>
         <h3>Home Assistant asks Runic</h3>
-        <p>It calls <code>GET /vehicles</code> with your API token. For each vehicle it keeps two entities up to date:</p>
+        <p>It calls <code>GET /vehicles</code> and <code>GET /vehicles/{id}</code> with your API token. For each vehicle it keeps three entities up to date:</p>
         <p><code>device_tracker.&lt;vehicle&gt;</code>: latitude and longitude, so it appears on the map.<br>
-        <code>binary_sensor.&lt;vehicle&gt;_moving</code>: on while Runic reports <code>RUN</code>, off at <code>STOP</code>.</p>
+        <code>sensor.&lt;vehicle&gt;_speed</code>: GPS speed of the last fix, in km/h.<br>
+        <code>binary_sensor.&lt;vehicle&gt;_moving</code>: on when the last fix is under 15 minutes old and at 5 km/h or more.</p>
+        <p class="note">Runic's own <code>RUN</code> status only means the tracker is active (heartbeats, ignition), so it isn't used for “moving”.</p>
         <p class="note">Works on your local network today, with no internet access to Home Assistant needed.</p>
       </div>
       <div class="path">
@@ -205,7 +207,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <section aria-labelledby="limits">
     <h2 id="limits">What version 0.1.0 doesn't do yet</h2>
     <ul class="limits">
-      <li>The “moving” sensor switches on instantly with a movement alert, but only switches off at the next 5-minute poll. Runic has no “stopped” alert.</li>
+      <li>The “moving” sensor only switches off at the next 5-minute poll. Runic has no “stopped” alert.</li>
       <li>No sensors yet for battery voltage, fuel or odometer, though Runic's API has them.</li>
       <li>Alerts can't be picked from a list in the automation editor yet. You write the trigger in YAML, as shown above.</li>
       <li>The setup asks for a webhook signing secret, even if you only want location polling for now.</li>
@@ -265,11 +267,11 @@ function run(scn) {
   $("req-label").textContent = scn === "poll" ? "Home Assistant asks Runic" : "Runic sends";
 
   if (scn === "poll") {
-    const v = { id: 58806, name: "Van 12", latitude: state.lat, longitude: state.lon, timestamp: 1790609100, status: "STOP" };
-    $("req").textContent = `GET https://api.runic.io/v1/vehicles\nAuthorization: Bearer <your token>\n\n← ${fmt({ vehicles: [v] })}`;
+    const v = { id: 58806, name: "Van 12", plate: "AB123CD", latitude: state.lat, longitude: state.lon, speed: 0, timestamp: 1790609100, status: "RUN" };
+    $("req").textContent = `GET https://api.runic.io/v1/vehicles/58806\nAuthorization: Bearer <your token>\n\n← ${fmt({ vehicle: v })}\n\nRunic still says RUN: the parked tracker is sending heartbeats.`;
     const changed = state.status !== "STOP";
     state.status = "STOP";
-    setSteps([["ok", "✓", "Runic accepted the API token."], ["ok", "✓", "Updated position and moving state for 1 vehicle."], ["idle", "–", "No event is fired: polling only updates entities."]]);
+    setSteps([["ok", "✓", "Runic accepted the API token."], ["ok", "✓", "Speed is 0 km/h, so the moving sensor is off, whatever Runic's status says."], ["idle", "–", "No event is fired: polling only updates entities."]]);
     $("resp").textContent = "";
     $("evt").textContent = "(none)";
     $("auto").textContent = "Anything triggered by the entities themselves, for example:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.van_12_moving\n    to: \"off\"";
@@ -308,7 +310,8 @@ function run(scn) {
   if (a.type === "alert.movement") state.status = "RUN";
   const steps = [["ok", "✓", "Signature valid, timestamp within 5 minutes."], ["ok", "✓", `New alert <code>${a.id}</code>, remembered so retries are ignored.`], ["ok", "✓", `Fired <code>runic_event</code> with type <code>${a.type}</code>.`]];
   if (moved) steps.push(["ok", "✓", "Moved Van 12 on the map to the alert's position."]);
-  if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "Switched the moving sensor on."]);
+  steps.push(["ok", "✓", "Asked Runic for the vehicle's latest speed."]);
+  if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "Speed is 38 km/h with a fresh fix, so the moving sensor switched on."]);
   setSteps(steps);
   $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· answered well inside Runic's 10-second limit</span>`;
   $("evt").textContent = "runic_event\n" + fmt(eventData(a));
