@@ -20,7 +20,7 @@ from custom_components.runic.const import (
     EVENT_RUNIC,
 )
 from custom_components.runic.coordinator import is_moving
-from custom_components.runic.signature import verify_signature
+from custom_components.runic.signature import signature_problem, verify_signature
 
 SECRET = "whsec_" + base64.b64encode(b"0123456789abcdef0123456789abcdef").decode()
 VEHICLES = {
@@ -77,6 +77,8 @@ def test_signature():
     assert verify_signature(SECRET, sign(body), body)
     assert not verify_signature(SECRET, sign(body), b'{"a":2}')
     assert not verify_signature(SECRET, sign(body, ts=int(time.time()) - 600), body)
+    assert "clock" in signature_problem(SECRET, sign(body, ts=int(time.time()) - 600), body)
+    assert "doesn't match" in signature_problem(SECRET, sign(body), b'{"a":2}')
     # Rotation: old + new signatures, either one may match.
     other = "whsec_" + base64.b64encode(b"x" * 32).decode()
     headers = sign(body)
@@ -160,3 +162,55 @@ async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aiocli
     assert events[0].data["plate"] == "AB123CD"
     assert hass.states.get("binary_sensor.van_12_moving").state == "on"
     assert hass.states.get("sensor.van_12_speed").state == "38"
+
+
+async def test_device_triggers_and_alert_entity(hass: HomeAssistant, aioclient_mock, hass_client_no_auth):
+    from homeassistant.components import automation
+    from homeassistant.components.device_automation import DeviceAutomationType
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.setup import async_setup_component
+    from pytest_homeassistant_custom_component.common import async_get_device_automations
+
+    from custom_components.runic.const import TRIGGER_TYPES
+
+    aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "58806")})
+    triggers = await async_get_device_automations(hass, DeviceAutomationType.TRIGGER, device.id)
+    assert sorted(t["type"] for t in triggers if t["domain"] == DOMAIN) == sorted(TRIGGER_TYPES)
+
+    calls = []
+    hass.services.async_register("test", "record", lambda call: calls.append(call.data))
+    assert await async_setup_component(
+        hass,
+        automation.DOMAIN,
+        {
+            automation.DOMAIN: [
+                {
+                    "triggers": [{"trigger": "device", "domain": DOMAIN, "device_id": device.id, "type": t}],
+                    "actions": [{"action": "test.record", "data": {"type": t}}],
+                }
+                for t in ("poi_enter", "poi_exit", "theft")
+            ]
+        },
+    )
+
+    client = await hass_client_no_auth()
+    alert = {**ALERT, "id": "evt_poi", "type": "alert.poi_area", "data": {"poi_id": 55, "direction": "in"}}
+    body = json.dumps(alert).encode()
+    resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body, msg_id="evt_poi"))
+    assert resp.status == 200
+    await hass.async_block_till_done()
+
+    assert [c["type"] for c in calls] == ["poi_enter"]
+    state = hass.states.get("event.van_12_last_alert")
+    assert state.attributes["event_type"] == "poi_area"
+    assert state.attributes["details"] == {"poi_id": 55, "direction": "in"}

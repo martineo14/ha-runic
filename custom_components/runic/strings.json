@@ -27,6 +27,61 @@
       "speed": {
         "name": "Speed"
       }
+    },
+    "event": {
+      "alert": {
+        "name": "Last alert",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "panic_button": "Panic button pressed",
+              "theft": "Theft alarm",
+              "tow": "Towed (moving with ignition off)",
+              "parking_moved": "Parked vehicle moved",
+              "jamming": "GSM jamming detected",
+              "cable_cut": "Power cable cut",
+              "tamper": "Device tampered",
+              "accident": "Accident detected",
+              "speed_limit": "Speed limit exceeded",
+              "poi_area": "Entered or left a point of interest",
+              "movement": "Started moving",
+              "input_activation": "Digital input changed",
+              "device_alarm": "Device alarm",
+              "low_battery": "Low vehicle battery",
+              "low_battery_internal": "Low tracker battery",
+              "offline": "Went offline",
+              "fuel": "Fuel level change (CAN)",
+              "fuel_tank": "Fuel tank refuel or levy",
+              "maintenance": "Maintenance due"
+            }
+          }
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "panic_button": "Panic button pressed",
+      "theft": "Theft alarm",
+      "tow": "Towed (moving with ignition off)",
+      "parking_moved": "Parked vehicle moved",
+      "jamming": "GSM jamming detected",
+      "cable_cut": "Power cable cut",
+      "tamper": "Device tampered",
+      "accident": "Accident detected",
+      "speed_limit": "Speed limit exceeded",
+      "poi_area": "Entered or left a point of interest",
+      "movement": "Started moving",
+      "input_activation": "Digital input changed",
+      "device_alarm": "Device alarm",
+      "low_battery": "Low vehicle battery",
+      "low_battery_internal": "Low tracker battery",
+      "offline": "Went offline",
+      "fuel": "Fuel level change (CAN)",
+      "fuel_tank": "Fuel tank refuel or levy",
+      "maintenance": "Maintenance due",
+      "poi_enter": "Entered a point of interest",
+      "poi_exit": "Left a point of interest"
     }
   }
 }

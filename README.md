@@ -37,6 +37,20 @@ and the URL must not redirect: Runic does not follow redirects.
 
 ## Automations
 
+### From the automation editor
+
+Each vehicle has a trigger for every Runic alert type. Add a trigger → **By target** → pick the vehicle
+(for example *Truck 3*) → choose the alert: *Theft alarm*, *Started moving*, *Entered a point of interest*,
+*Left a point of interest*, *Speed limit exceeded*, *Low vehicle battery*… Or use **Device** → the vehicle → the alert.
+
+Each vehicle also has an `event.<vehicle>_last_alert` entity that shows its latest alert in the dashboard,
+history and logbook.
+
+An alert type only fires when two things are set up in Runic: the type is ticked on your webhook endpoint
+(developers.runic.io → Webhooks), and an alert rule for it exists in the Runic app.
+
+### In YAML
+
 ```yaml
 triggers:
   - trigger: event
@@ -52,7 +66,7 @@ actions:
         POI {{ trigger.event.data.data.poi_id }}
 ```
 
-Event data: `id`, `type`, `level`, `created_at`, `vehicle_id`, `vehicle_name`, `plate`,
+Event data: `id`, `type`, `alert` (type without `alert.`), `device_id`, `direction` (geofences), `level`, `created_at`, `vehicle_id`, `vehicle_name`, `plate`,
 `position` (`lat`, `lon`, `at`), `data` (type-specific), `message`.
 
 Alert types: `alert.movement`, `alert.poi_area`, `alert.speed_limit`, `alert.theft`, `alert.tow`,
