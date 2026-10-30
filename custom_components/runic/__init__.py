@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+import html
 import json
 import logging
 
@@ -104,7 +105,8 @@ def _make_handler(entry: RunicConfigEntry):
                 "plate": vehicle.get("plate"),
                 "position": alert.get("position"),
                 "data": alert.get("data", {}),
-                "message": alert.get("message"),
+                # Runic sends HTML entities, e.g. "velocit&agrave;".
+                "message": html.unescape(alert["message"]) if alert.get("message") else None,
             },
         )
         data.coordinator.apply_alert(alert)
