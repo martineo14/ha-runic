@@ -108,7 +108,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">martineo14/ha-runic · v0.2.0</span>
+    <span class="eyebrow">martineo14/ha-runic · v0.3.0</span>
     <h1>What the Runic.io integration does</h1>
     <p class="muted">It connects your Runic GPS trackers to Home Assistant in two ways: it reads where each vehicle is, and it passes Runic alerts (started moving, entered a zone, theft…) to your automations within seconds.</p>
   </header>
@@ -209,7 +209,6 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <ul class="limits">
       <li>The “moving” sensor only switches off at the next 5-minute poll. Runic has no “stopped” alert.</li>
       <li>No sensors yet for battery voltage, fuel or odometer, though Runic's API has them.</li>
-      <li>Alerts can't be picked from a list in the automation editor yet. You write the trigger in YAML, as shown above.</li>
       <li>The setup asks for a webhook signing secret, even if you only want location polling for now.</li>
       <li>Vehicles added to your Runic account later only appear after you reload the integration.</li>
     </ul>

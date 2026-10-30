@@ -13,15 +13,16 @@ from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_WEBHOOK_ID, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import RunicApiClient
 from .const import CONF_API_TOKEN, CONF_SIGNING_SECRET, DOMAIN, EVENT_RUNIC
 from .coordinator import RunicCoordinator
-from .signature import verify_signature
+from .signature import signature_problem
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT, Platform.SENSOR]
 
 
 @dataclass
@@ -62,8 +63,8 @@ def _make_handler(entry: RunicConfigEntry):
         hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
         raw = await request.read()
-        if not verify_signature(entry.data[CONF_SIGNING_SECRET], request.headers, raw):
-            _LOGGER.warning("Rejected Runic webhook with a bad signature or timestamp")
+        if problem := signature_problem(entry.data[CONF_SIGNING_SECRET], request.headers, raw):
+            _LOGGER.warning("Rejected a Runic webhook (answered 401): %s", problem)
             # 401 is a permanent refusal for Runic after 3 attempts.
             return web.Response(status=401)
 
@@ -83,11 +84,19 @@ def _make_handler(entry: RunicConfigEntry):
         data.seen_ids.append(alert["id"])
 
         vehicle = alert.get("vehicle") or {}
+        device = (
+            dr.async_get(hass).async_get_device(identifiers={(DOMAIN, str(vehicle["id"]))})
+            if vehicle.get("id") is not None
+            else None
+        )
         hass.bus.async_fire(
             EVENT_RUNIC,
             {
                 "id": alert["id"],
                 "type": alert["type"],  # e.g. alert.movement, alert.poi_area
+                "alert": alert["type"].removeprefix("alert."),
+                "device_id": device.id if device else None,
+                "direction": (alert.get("data") or {}).get("direction"),
                 "level": alert.get("level"),
                 "created_at": alert.get("created_at"),
                 "vehicle_id": vehicle.get("id"),
