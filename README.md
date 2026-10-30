@@ -2,8 +2,13 @@
 
 Custom integration for [Runic.io](https://www.runic.io) GPS trackers.
 
-- **Vehicles** are read from the Runic REST API (`https://api.runic.io/v1`, Bearer token) every 5 minutes:
-  one `device_tracker` and one "moving" `binary_sensor` per vehicle.
+- **Vehicles** are read from the Runic REST API (`https://api.runic.io/v1`, Bearer token) every 5 minutes,
+  and right after each alert. Per vehicle you get:
+  - `device_tracker.<vehicle>`: position on the map.
+  - `sensor.<vehicle>_speed`: GPS speed of the last fix, in km/h.
+  - `binary_sensor.<vehicle>_moving`: on when the last fix is under 15 minutes old and at 5 km/h or more.
+    Runic's own `RUN`/`STOP` status is kept as the `runic_status` attribute only: it reads `RUN` whenever
+    the tracker is active (heartbeats, ignition), even when the vehicle is parked.
 - **Alerts** arrive instantly as signed Runic webhooks and are fired on the HA event bus as `runic_event`.
   Signatures (Standard Webhooks, HMAC-SHA256), timestamps and duplicate deliveries are checked.
 
