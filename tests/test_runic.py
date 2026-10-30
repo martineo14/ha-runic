@@ -204,7 +204,13 @@ async def test_device_triggers_and_alert_entity(hass: HomeAssistant, aioclient_m
     )
 
     client = await hass_client_no_auth()
-    alert = {**ALERT, "id": "evt_poi", "type": "alert.poi_area", "data": {"poi_id": 55, "direction": "in"}}
+    alert = {
+        **ALERT,
+        "id": "evt_poi",
+        "type": "alert.poi_area",
+        "data": {"poi_id": 55, "direction": "in"},
+        "message": "La velocit&agrave; rilevata &egrave; 103.0 km/h",
+    }
     body = json.dumps(alert).encode()
     resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body, msg_id="evt_poi"))
     assert resp.status == 200
@@ -214,3 +220,4 @@ async def test_device_triggers_and_alert_entity(hass: HomeAssistant, aioclient_m
     state = hass.states.get("event.van_12_last_alert")
     assert state.attributes["event_type"] == "poi_area"
     assert state.attributes["details"] == {"poi_id": 55, "direction": "in"}
+    assert state.attributes["message"] == "La velocità rilevata è 103.0 km/h"
