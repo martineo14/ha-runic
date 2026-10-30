@@ -101,6 +101,28 @@ pre { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px; 
 @media (prefers-reduced-motion: reduce) { .changed { animation: none; } }
 .note { font-size: 13px; color: var(--muted); }
 
+/* Triggers */
+.choose { width: 100%; border-collapse: collapse; font-size: 14px; }
+.choose th, .choose td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.choose th { font: 600 11px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.chip { display: inline-block; font: 600 11px var(--body); letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.chip-hook { background: color-mix(in srgb, var(--accent-fill) 28%, transparent); color: var(--fg); }
+.chip-poll { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--fg); }
+.steps-ui { margin: 0; padding-left: 22px; display: grid; gap: 8px; max-width: 72ch; }
+.kbd { font: 600 13px var(--body); background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; white-space: nowrap; }
+.recipes { display: grid; gap: 16px; }
+.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; }
+.recipe .about { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.recipe .code { position: relative; min-width: 0; }
+.recipe .code pre { padding-top: 40px; }
+.recipe .code button { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 4px 10px; }
+@media (max-width: 760px) { .recipe { grid-template-columns: 1fr; } }
+.ref { columns: 2 280px; column-gap: 32px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.ref li { break-inside: avoid; display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ref code { white-space: nowrap; }
+.fields { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+
 /* Limits */
 .limits { margin: 0; padding-left: 18px; display: grid; gap: 8px; max-width: 72ch; }
 footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
@@ -131,17 +153,17 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <ul>
           <li>Rejects anything without a valid signature, or older than 5 minutes.</li>
           <li>Ignores repeats of an alert it already handled.</li>
-          <li>Fires a <code>runic_event</code> in Home Assistant.</li>
-          <li>Moves the vehicle on the map if the alert carries a position.</li>
+          <li>Fires the vehicle's trigger for that alert type, for example “Theft alarm”.</li>
+          <li>Moves the vehicle on the map and records the alert on its “Last alert” entity.</li>
         </ul>
       </div>
       <div class="lane">
         <span class="eyebrow">Your Home Assistant</span>
         <h3>You decide what happens</h3>
         <ul>
-          <li>An automation triggered by <code>runic_event</code> runs: notify your phone, turn on lights, open the garage.</li>
+          <li>An automation using that trigger runs: notify your phone, turn on lights, open the garage.</li>
           <li>The vehicle shows on the map and in zones like <em>Home</em>.</li>
-          <li>The “moving” sensor can trigger automations too.</li>
+          <li>The location, speed and “moving” entities can trigger automations too.</li>
         </ul>
       </div>
     </div>
@@ -167,6 +189,51 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <p class="note">Needs Home Assistant reachable from the internet over HTTPS (Nabu Casa, a Cloudflare tunnel…), and an alert rule in the Runic app for each type.</p>
       </div>
     </div>
+  </section>
+
+  <section aria-labelledby="triggers">
+    <h2 id="triggers">Set up triggers</h2>
+    <p class="muted">Each Runic vehicle is a device in Home Assistant. You can trigger on a Runic alert, or on a change to the vehicle's location, speed or moving entities. Pick the one that matches what you want to react to.</p>
+    <div class="table-wrap">
+      <table class="choose">
+        <thead><tr><th>Trigger</th><th>Fires when</th><th>Needs</th><th>Good for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Runic alert</strong><br><span class="muted">Device trigger, e.g. “Theft alarm”</span></td><td>Seconds after Runic raises the alert</td><td><span class="chip chip-hook">Webhook</span></td><td>Theft, tow, panic button, accident, geofences, speeding, battery, offline</td></tr>
+          <tr><td><strong>Zone</strong><br><span class="muted"><code>device_tracker.&lt;vehicle&gt;</code></span></td><td>The vehicle enters or leaves a Home Assistant zone</td><td><span class="chip chip-poll">Polling only</span></td><td>Arriving home, leaving work. Can take up to 5 minutes</td></tr>
+          <tr><td><strong>Moving</strong><br><span class="muted"><code>binary_sensor.&lt;vehicle&gt;_moving</code></span></td><td>The sensor turns on or off, optionally for a set time</td><td><span class="chip chip-poll">Polling only</span></td><td>Trip started, parked for 30 minutes</td></tr>
+          <tr><td><strong>Speed</strong><br><span class="muted"><code>sensor.&lt;vehicle&gt;_speed</code></span></td><td>The speed goes above or below a value</td><td><span class="chip chip-poll">Polling only</span></td><td>Your own speed thresholds</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><span class="chip chip-hook">Webhook</span> triggers need Home Assistant reachable from the internet and an alert rule in the Runic app. <span class="chip chip-poll">Polling only</span> triggers work on your local network with nothing else to set up.</p>
+
+    <h3>Add a Runic alert trigger in the editor</h3>
+    <ol class="steps-ui">
+      <li>Go to <span class="kbd">Settings</span> → <span class="kbd">Automations &amp; scenes</span> → <span class="kbd">Create automation</span> → <span class="kbd">Create new automation</span>.</li>
+      <li>Click <span class="kbd">Add trigger</span>, then the <span class="kbd">By target</span> tab.</li>
+      <li>Under <strong>Devices</strong>, click your vehicle, for example <em>Truck 3</em>. Don't open its child entities.</li>
+      <li>On the right, pick the alert: <em>Theft alarm</em>, <em>Entered a point of interest</em>, <em>Speed limit exceeded</em>…</li>
+      <li>Add your actions under <span class="kbd">Then do</span>, then <span class="kbd">Save</span>.</li>
+    </ol>
+    <p class="note">Alternative: <span class="kbd">By type</span> → <span class="kbd">Device</span> → choose the vehicle → choose the alert. To use the same trigger for several vehicles, add one trigger per vehicle in the same automation. The examples below are YAML. To use one, open <span class="kbd">⋮</span> → <span class="kbd">Edit in YAML</span> in a new automation, paste it, then switch back to the visual editor and pick your own vehicle and phone.</p>
+
+    <h3>Examples</h3>
+    <div class="recipes" id="recipes"></div>
+
+    <h3>Every Runic alert trigger</h3>
+    <p class="note">The name shown in the editor, and the <code>type</code> value it uses in YAML.</p>
+    <ul class="ref" id="ref"></ul>
+
+    <h3>Information you can use in messages</h3>
+    <p class="note">Inside an automation started by a Runic alert, these templates hold the alert's details:</p>
+    <ul class="fields">
+      <li><code>{{ trigger.event.data.vehicle_name }}</code>, <code>{{ trigger.event.data.plate }}</code></li>
+      <li><code>{{ trigger.event.data.alert }}</code>: the alert type, e.g. <code>theft</code></li>
+      <li><code>{{ trigger.event.data.level }}</code>: <code>info</code>, <code>warning</code> or <code>critical</code>, as set on the Runic rule</li>
+      <li><code>{{ trigger.event.data.message }}</code>: Runic's text, in your account's language</li>
+      <li><code>{{ trigger.event.data.position.lat }}</code>, <code>{{ trigger.event.data.position.lon }}</code></li>
+      <li><code>{{ trigger.event.data.data.poi_id }}</code>, <code>{{ trigger.event.data.direction }}</code>: for geofences</li>
+    </ul>
   </section>
 
   <section aria-labelledby="sim">
@@ -195,6 +262,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <div class="entities">
           <div class="entity" id="e-tracker"><span class="id">device_tracker.van_12</span><span class="val" id="v-tracker"></span></div>
           <div class="entity" id="e-moving"><span class="id">binary_sensor.van_12_moving</span><span class="val" id="v-moving"></span></div>
+          <div class="entity" id="e-alert"><span class="id">event.van_12_last_alert</span><span class="val" id="v-alert"></span></div>
         </div>
         <h3>Event fired</h3>
         <pre id="evt"></pre>
@@ -205,7 +273,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </section>
 
   <section aria-labelledby="limits">
-    <h2 id="limits">What version 0.1.0 doesn't do yet</h2>
+    <h2 id="limits">What version 0.3.0 doesn't do yet</h2>
     <ul class="limits">
       <li>The “moving” sensor only switches off at the next 5-minute poll. Runic has no “stopped” alert.</li>
       <li>No sensors yet for battery voltage, fuel or odometer, though Runic's API has them.</li>
@@ -233,11 +301,160 @@ const ALERTS = {
   poi: base("evt_44134002", "alert.poi_area", { poi_id: 55, direction: "in" }, "Alert", "info", { lat: 45.061230, lon: 12.071904, at: "2026-09-28T15:34:40Z" }),
   theft: base("evt_44134117", "alert.theft", {}, "Theft alarm", "critical", { lat: 45.061230, lon: 12.071904, at: "2026-09-28T22:02:13Z" })
 };
+const DEV = "a1b2c3d4e5f6  # your vehicle, picked in the editor";
 const AUTOS = {
-  "alert.movement": `triggers:\n  - trigger: event\n    event_type: runic_event\n    event_data:\n      type: alert.movement\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "{{ trigger.event.data.vehicle_name }} started moving"`,
-  "alert.poi_area": `triggers:\n  - trigger: event\n    event_type: runic_event\n    event_data:\n      type: alert.poi_area\nconditions:\n  - "{{ trigger.event.data.data.direction == 'in' }}"\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
-  "alert.theft": `triggers:\n  - trigger: event\n    event_type: runic_event\n    event_data:\n      type: alert.theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "THEFT: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
+  "alert.movement": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: movement\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "{{ trigger.event.data.vehicle_name }} started moving"`,
+  "alert.poi_area": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: poi_enter\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
+  "alert.theft": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "THEFT: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
 };
+const ALERT_NAMES = {
+  movement: "Started moving", poi_area: "Entered or left a point of interest", theft: "Theft alarm"
+};
+
+const TRIGGER_REF = [
+  ["Panic button pressed", "panic_button"], ["Theft alarm", "theft"], ["Towed (moving with ignition off)", "tow"],
+  ["Parked vehicle moved", "parking_moved"], ["GSM jamming detected", "jamming"], ["Power cable cut", "cable_cut"],
+  ["Device tampered", "tamper"], ["Accident detected", "accident"], ["Speed limit exceeded", "speed_limit"],
+  ["Entered a point of interest", "poi_enter"], ["Left a point of interest", "poi_exit"],
+  ["Entered or left a point of interest", "poi_area"], ["Started moving", "movement"],
+  ["Digital input changed", "input_activation"], ["Device alarm", "device_alarm"], ["Low vehicle battery", "low_battery"],
+  ["Low tracker battery", "low_battery_internal"], ["Went offline", "offline"], ["Fuel level change (CAN)", "fuel"],
+  ["Fuel tank refuel or levy", "fuel_tank"], ["Maintenance due", "maintenance"]
+];
+
+const DEVICE = "a1b2c3d4e5f6  # picked in the editor";
+const RECIPES = [
+  { title: "Theft alarm: critical alert on your phone", kind: "hook",
+    text: "Breaks through Do Not Disturb on iPhone, and says where the vehicle is.",
+    yaml: `alias: Runic theft alarm
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: theft
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "Theft alarm: {{ trigger.event.data.vehicle_name }}"
+      message: "{{ trigger.event.data.plate }} at {{ trigger.event.data.position.lat }}, {{ trigger.event.data.position.lon }}"
+      data:
+        push:
+          interruption-level: critical` },
+  { title: "Arrive at a point of interest: open the gate", kind: "hook",
+    text: "Uses the points of interest you drew in the Runic app. The condition limits it to one point of interest. Find its id in the Last alert entity's details.",
+    yaml: `alias: Open gate when the truck arrives
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: poi_enter
+conditions:
+  - "{{ trigger.event.data.data.poi_id == 55 }}"
+actions:
+  - action: cover.open_cover
+    target:
+      entity_id: cover.yard_gate` },
+  { title: "Towed or moved while parked", kind: "hook",
+    text: "Two triggers in one automation, both on the same vehicle. Either one sends the notification.",
+    yaml: `alias: Runic vehicle moved without driver
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: tow
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: parking_moved
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "{{ trigger.event.data.vehicle_name }}: {{ trigger.event.data.message }}"` },
+  { title: "Speed limit exceeded: log it", kind: "hook",
+    text: "Runic's speed limit is set on the alert rule in the Runic app. This keeps a record in the logbook.",
+    yaml: `alias: Log Runic speeding
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: speed_limit
+actions:
+  - action: logbook.log
+    data:
+      name: "{{ trigger.event.data.vehicle_name }}"
+      message: "exceeded the speed limit ({{ trigger.event.data.created_at }})"` },
+  { title: "Any critical alert, from any vehicle", kind: "hook",
+    text: "One automation for the whole fleet. It reacts to every alert whose Runic rule is set to critical.",
+    yaml: `alias: Any critical Runic alert
+triggers:
+  - trigger: event
+    event_type: runic_event
+    event_data:
+      level: critical
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "{{ trigger.event.data.vehicle_name }}"
+      message: "{{ trigger.event.data.message }}"` },
+  { title: "Vehicle arrives home", kind: "poll",
+    text: "Uses a Home Assistant zone, so it works without the webhook. It can take up to 5 minutes, the polling interval.",
+    yaml: `alias: Truck 3 is home
+triggers:
+  - trigger: zone
+    entity_id: device_tracker.truck_3
+    zone: zone.home
+    event: enter
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.driveway` },
+  { title: "Driving above 120 km/h", kind: "poll",
+    text: "Your own threshold, read from the speed sensor at each update.",
+    yaml: `alias: Truck 3 above 120 km/h
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.truck_3_speed
+    above: 120
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "Truck 3 is doing {{ states('sensor.truck_3_speed') }} km/h"` },
+  { title: "Parked for 30 minutes", kind: "poll",
+    text: "Fires once the moving sensor has been off for 30 minutes in a row.",
+    yaml: `alias: Van 12 parked 30 minutes
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.van_12_moving
+    to: "off"
+    for: "00:30:00"
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "Van 12 has been parked for 30 minutes"` }
+];
+
+function renderRecipes() {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  document.getElementById("recipes").innerHTML = RECIPES.map((r, i) => `
+    <article class="recipe">
+      <div class="about">
+        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Webhook</span>' : '<span class="chip chip-poll">Polling only</span>'}</span>
+        <h3>${r.title}</h3>
+        <p class="note">${r.text}</p>
+      </div>
+      <div class="code">
+        <pre id="y-${i}">${esc(r.yaml)}</pre>
+        <button type="button" id="copy-${i}" data-copy="${i}">Copy</button>
+      </div>
+    </article>`).join("");
+  document.getElementById("ref").innerHTML = TRIGGER_REF.map(([n, t]) => `<li><span>${n}</span><code>${t}</code></li>`).join("");
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => {
+    const pre = document.getElementById(`y-${b.dataset.copy}`);
+    const done = () => { b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1500); };
+    const select = () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected: press Ctrl+C"; };
+    try { navigator.clipboard.writeText(pre.textContent).then(done, select); } catch { select(); }
+  }));
+}
 let lastAlert = null;
 
 const $ = (id) => document.getElementById(id);
@@ -248,16 +465,18 @@ function setSteps(list) {
   $("steps").innerHTML = list.map(([cls, mark, text]) =>
     `<li class="s-${cls}"><span class="mark">${mark}</span><span>${text}</span></li>`).join("");
 }
-function renderEntities(changedTracker, changedMoving) {
+function renderEntities(changedTracker, changedMoving, changedAlert = false) {
   $("v-tracker").textContent = `${state.lat.toFixed(6)}, ${state.lon.toFixed(6)}`;
   $("v-moving").textContent = state.status === "RUN" ? "on (moving)" : "off (stopped)";
-  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving]]) {
+  $("v-alert").textContent = state.alert ? ALERT_NAMES[state.alert] : "unknown (no alert yet)";
+  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert]]) {
     $(el).classList.remove("changed");
     if (on) { void $(el).offsetWidth; $(el).classList.add("changed"); }
   }
 }
 function eventData(a) {
-  return { id: a.id, type: a.type, level: a.level, created_at: a.created_at, vehicle_id: a.vehicle.id,
+  const alert = a.type.replace("alert.", "");
+  return { id: a.id, type: a.type, alert, device_id: "a1b2c3d4e5f6", direction: a.data.direction ?? null, level: a.level, created_at: a.created_at, vehicle_id: a.vehicle.id,
     vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message };
 }
 
@@ -307,7 +526,8 @@ function run(scn) {
   const wasStatus = state.status;
   if (a.position) { state.lat = a.position.lat; state.lon = a.position.lon; }
   if (a.type === "alert.movement") state.status = "RUN";
-  const steps = [["ok", "✓", "Signature valid, timestamp within 5 minutes."], ["ok", "✓", `New alert <code>${a.id}</code>, remembered so retries are ignored.`], ["ok", "✓", `Fired <code>runic_event</code> with type <code>${a.type}</code>.`]];
+  state.alert = a.type.replace("alert.", "");
+  const steps = [["ok", "✓", "Signature valid, timestamp within 5 minutes."], ["ok", "✓", `New alert <code>${a.id}</code>, remembered so retries are ignored.`], ["ok", "✓", `Fired Van 12's “${ALERT_NAMES[a.type.replace("alert.", "")]}” trigger, and <code>runic_event</code> with type <code>${a.type}</code>.`]];
   if (moved) steps.push(["ok", "✓", "Moved Van 12 on the map to the alert's position."]);
   steps.push(["ok", "✓", "Asked Runic for the vehicle's latest speed."]);
   if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "Speed is 38 km/h with a fresh fix, so the moving sensor switched on."]);
@@ -315,12 +535,13 @@ function run(scn) {
   $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· answered well inside Runic's 10-second limit</span>`;
   $("evt").textContent = "runic_event\n" + fmt(eventData(a));
   $("auto").textContent = AUTOS[a.type];
-  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN");
+  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true);
 }
 
 function reset() { state = { ...START }; seen.clear(); lastAlert = null; run("movement"); }
 
 document.querySelectorAll("[data-scn]").forEach(b => b.addEventListener("click", () => run(b.dataset.scn)));
 $("b-reset").addEventListener("click", reset);
+renderRecipes();
 reset();
 </script>
