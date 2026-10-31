@@ -1,0 +1,547 @@
+<title>Guida all'integrazione Runic</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: una colonna di lettura; tre corsie (Runic → integrazione → tu), poi un simulatore con la richiesta a sinistra e Home Assistant a destra. */
+:root {
+  --bg: #f6f6f2;
+  --surface: #ffffff;
+  --fg: #1b1d1a;
+  --muted: #5d625a;
+  --line: #dcdcd3;
+  --accent: #806700;      /* Runic yellow, darkened for text on light */
+  --accent-fill: #f5c518;
+  --on-accent: #151515;
+  --ok: #1f7a3d;
+  --bad: #b3261e;
+  --skip: #6b5b00;
+  --code-bg: #efefe8;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121311; --surface: #1b1d1a; --fg: #ecece6; --muted: #a3a79d; --line: #2f322d;
+    --accent: #f5c518; --accent-fill: #f5c518; --on-accent: #151515;
+    --ok: #6fcf8e; --bad: #ff8a80; --skip: #e8cf6a; --code-bg: #232520;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121311; --surface: #1b1d1a; --fg: #ecece6; --muted: #a3a79d; --line: #2f322d;
+  --accent: #f5c518; --accent-fill: #f5c518; --on-accent: #151515;
+  --ok: #6fcf8e; --bad: #ff8a80; --skip: #e8cf6a; --code-bg: #232520;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 22px; font-weight: 700; }
+h3 { font-size: 15px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 600 11px/1 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+section { display: grid; gap: 18px; }
+header { display: grid; gap: 14px; }
+
+/* Lanes */
+.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.lane { padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.lane + .lane { border-left: 1px solid var(--line); }
+.lane ol, .lane ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.lane .tag { font: 500 12px var(--mono); color: var(--muted); }
+@media (max-width: 760px) {
+  .lanes { grid-template-columns: 1fr; }
+  .lane + .lane { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* Two paths */
+.paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.path { border-top: 3px solid var(--accent-fill); padding-top: 14px; display: grid; gap: 8px; min-width: 0; }
+@media (max-width: 700px) { .paths { grid-template-columns: 1fr; } }
+
+/* Simulator */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: 500 13px var(--body); padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+button.ghost { color: var(--muted); }
+.sim { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 820px) { .sim { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+pre { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px; overflow-x: auto; font: 12.5px/1.5 var(--mono); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; }
+.mark { font: 700 13px var(--mono); }
+.s-ok .mark { color: var(--ok); }
+.s-bad .mark { color: var(--bad); }
+.s-skip .mark { color: var(--skip); }
+.s-idle { color: var(--muted); }
+.response { font: 600 13px var(--mono); }
+.entities { display: grid; gap: 8px; }
+.entity { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; align-items: center; }
+.entity .id { font: 500 12.5px var(--mono); overflow-wrap: anywhere; }
+.entity .val { font: 600 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.changed { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent-fill) 35%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .changed { animation: none; } }
+.note { font-size: 13px; color: var(--muted); }
+
+/* Triggers */
+.choose { width: 100%; border-collapse: collapse; font-size: 14px; }
+.choose th, .choose td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.choose th { font: 600 11px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.chip { display: inline-block; font: 600 11px var(--body); letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.chip-hook { background: color-mix(in srgb, var(--accent-fill) 28%, transparent); color: var(--fg); }
+.chip-poll { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--fg); }
+.steps-ui { margin: 0; padding-left: 22px; display: grid; gap: 8px; max-width: 72ch; }
+.kbd { font: 600 13px var(--body); background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; white-space: nowrap; }
+.recipes { display: grid; gap: 16px; }
+.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; }
+.recipe .about { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.recipe .code { position: relative; min-width: 0; }
+.recipe .code pre { padding-top: 40px; }
+.recipe .code button { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 4px 10px; }
+@media (max-width: 760px) { .recipe { grid-template-columns: 1fr; } }
+.ref { columns: 2 280px; column-gap: 32px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.ref li { break-inside: avoid; display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ref code { white-space: nowrap; }
+.fields { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+
+/* Limits */
+.limits { margin: 0; padding-left: 18px; display: grid; gap: 8px; max-width: 72ch; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">martineo14/ha-runic · v0.3.0</span>
+    <h1>Cosa fa l'integrazione Runic.io</h1>
+    <p class="muted">Collega i tuoi localizzatori GPS Runic a Home Assistant in due modi: legge dove si trova ogni veicolo e inoltra gli avvisi di Runic (partito, entrato in una zona, furto…) alle tue automazioni nel giro di pochi secondi.</p>
+  </header>
+
+  <section aria-labelledby="flow">
+    <h2 id="flow">Dal localizzatore alla tua automazione</h2>
+    <div class="lanes">
+      <div class="lane">
+        <span class="eyebrow">Cloud Runic</span>
+        <h3>Il localizzatore invia i dati</h3>
+        <ul>
+          <li>La posizione del veicolo e il suo stato in movimento / fermo sono registrati da Runic.</li>
+          <li>Scatta una <strong>regola di avviso</strong> che hai creato nell'app Runic, per esempio “il veicolo è partito”.</li>
+          <li>Runic invia l'avviso al tuo Home Assistant, firmato con il tuo segreto <code>whsec_…</code>.</li>
+        </ul>
+      </div>
+      <div class="lane">
+        <span class="eyebrow">L'integrazione</span>
+        <h3>Lo controlla, poi lo annuncia</h3>
+        <ul>
+          <li>Rifiuta tutto ciò che non ha una firma valida o che è più vecchio di 5 minuti.</li>
+          <li>Ignora le ripetizioni di un avviso già gestito.</li>
+          <li>Attiva il trigger del veicolo per quel tipo di avviso, per esempio “Allarme furto”.</li>
+          <li>Sposta il veicolo sulla mappa e registra l'avviso nella sua entità “Ultimo avviso”.</li>
+        </ul>
+      </div>
+      <div class="lane">
+        <span class="eyebrow">Il tuo Home Assistant</span>
+        <h3>Decidi tu cosa succede</h3>
+        <ul>
+          <li>Parte un'automazione che usa quel trigger: una notifica sul telefono, le luci che si accendono, il garage che si apre.</li>
+          <li>Il veicolo compare sulla mappa e nelle zone come <em>Casa</em>.</li>
+          <li>Anche le entità di posizione, velocità e “in movimento” possono avviare automazioni.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="paths">
+    <h2 id="paths">Due modi in cui arrivano i dati</h2>
+    <div class="paths">
+      <div class="path">
+        <span class="eyebrow">Ogni 5 minuti</span>
+        <h3>Home Assistant chiede a Runic</h3>
+        <p>Chiama <code>GET /vehicles</code> e <code>GET /vehicles/{id}</code> con il tuo token API. Per ogni veicolo tiene aggiornate tre entità:</p>
+        <p><code>device_tracker.&lt;veicolo&gt;</code>: latitudine e longitudine, così compare sulla mappa.<br>
+        <code>sensor.&lt;veicolo&gt;_speed</code>: velocità GPS dell'ultima rilevazione, in km/h.<br>
+        <code>binary_sensor.&lt;veicolo&gt;_moving</code>: acceso quando l'ultima rilevazione ha meno di 15 minuti ed è a 5 km/h o più.</p>
+        <p class="note">Lo stato <code>RUN</code> di Runic indica solo che il localizzatore è attivo (heartbeat, accensione), quindi non viene usato per “in movimento”.</p>
+        <p class="note">Funziona già oggi sulla tua rete locale, senza bisogno che Home Assistant sia raggiungibile da internet.</p>
+      </div>
+      <div class="path">
+        <span class="eyebrow">Pochi secondi dopo un avviso</span>
+        <h3>Runic avvisa Home Assistant</h3>
+        <p>Runic invia ogni avviso all'URL del tuo webhook. È questo che avvia le automazioni. Copre 20 tipi di avviso, tra cui <code>alert.movement</code>, <code>alert.poi_area</code> (entrato in una zona o uscito), <code>alert.theft</code>, <code>alert.tow</code>, <code>alert.speed_limit</code> e <code>alert.low_battery</code>.</p>
+        <p class="note">Serve che Home Assistant sia raggiungibile da internet in HTTPS (Nabu Casa, un tunnel Cloudflare…) e una regola di avviso nell'app Runic per ogni tipo.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="triggers">
+    <h2 id="triggers">Configura i trigger</h2>
+    <p class="muted">Ogni veicolo Runic è un dispositivo in Home Assistant. Puoi avviare un'automazione da un avviso Runic, oppure da un cambiamento delle entità di posizione, velocità o movimento del veicolo. Scegli quello che corrisponde a ciò a cui vuoi reagire.</p>
+    <div class="table-wrap">
+      <table class="choose">
+        <thead><tr><th>Trigger</th><th>Scatta quando</th><th>Richiede</th><th>Adatto per</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Avviso Runic</strong><br><span class="muted">Trigger del dispositivo, es. “Allarme furto”</span></td><td>Pochi secondi dopo che Runic genera l'avviso</td><td><span class="chip chip-hook">Webhook</span></td><td>Furto, rimorchio, pulsante antipanico, incidente, geofence, eccesso di velocità, batteria, non raggiungibile</td></tr>
+          <tr><td><strong>Zona</strong><br><span class="muted"><code>device_tracker.&lt;veicolo&gt;</code></span></td><td>Il veicolo entra in una zona di Home Assistant o ne esce</td><td><span class="chip chip-poll">Solo polling</span></td><td>Arrivo a casa, uscita dal lavoro. Può richiedere fino a 5 minuti</td></tr>
+          <tr><td><strong>In movimento</strong><br><span class="muted"><code>binary_sensor.&lt;veicolo&gt;_moving</code></span></td><td>Il sensore si accende o si spegne, eventualmente per un certo tempo</td><td><span class="chip chip-poll">Solo polling</span></td><td>Viaggio iniziato, parcheggiato da 30 minuti</td></tr>
+          <tr><td><strong>Velocità</strong><br><span class="muted"><code>sensor.&lt;veicolo&gt;_speed</code></span></td><td>La velocità sale sopra o scende sotto un valore</td><td><span class="chip chip-poll">Solo polling</span></td><td>Le tue soglie di velocità</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">I trigger <span class="chip chip-hook">Webhook</span> richiedono che Home Assistant sia raggiungibile da internet e una regola di avviso nell'app Runic. I trigger <span class="chip chip-poll">Solo polling</span> (interrogazione periodica) funzionano sulla tua rete locale senza altro da configurare.</p>
+
+    <h3>Aggiungi un trigger per un avviso Runic nell'editor</h3>
+    <ol class="steps-ui">
+      <li>Vai su <span class="kbd">Impostazioni</span> → <span class="kbd">Automazioni e scene</span> → <span class="kbd">Crea automazione</span> → <span class="kbd">Crea nuova automazione</span>.</li>
+      <li>Fai clic su <span class="kbd">Aggiungi attivazione</span>, poi sulla scheda <span class="kbd">Per destinazione</span> (By target).</li>
+      <li>In <strong>Dispositivi</strong>, fai clic sul tuo veicolo, per esempio <em>Camion 3</em>. Non aprire le sue entità.</li>
+      <li>A destra, scegli l'avviso: <em>Allarme furto</em>, <em>Entrato in un punto di interesse</em>, <em>Limite di velocità superato</em>…</li>
+      <li>Aggiungi le tue azioni in <span class="kbd">Allora fai</span>, poi <span class="kbd">Salva</span>.</li>
+    </ol>
+    <p class="note">In alternativa: <span class="kbd">Per tipo</span> (By type) → <span class="kbd">Dispositivo</span> → scegli il veicolo → scegli l'avviso. Per usare lo stesso trigger per più veicoli, aggiungi un trigger per ogni veicolo nella stessa automazione. Gli esempi qui sotto sono in YAML. Per usarne uno, in una nuova automazione apri <span class="kbd">⋮</span> → <span class="kbd">Modifica in YAML</span>, incollalo, poi torna all'editor visivo e scegli il tuo veicolo e il tuo telefono.</p>
+
+    <h3>Esempi</h3>
+    <div class="recipes" id="recipes"></div>
+
+    <h3>Tutti i trigger degli avvisi Runic</h3>
+    <p class="note">Il nome mostrato nell'editor e il valore <code>type</code> che usa in YAML.</p>
+    <ul class="ref" id="ref"></ul>
+
+    <h3>Informazioni da usare nei messaggi</h3>
+    <p class="note">In un'automazione avviata da un avviso Runic, questi template contengono i dettagli dell'avviso:</p>
+    <ul class="fields">
+      <li><code>{{ trigger.event.data.vehicle_name }}</code>, <code>{{ trigger.event.data.plate }}</code></li>
+      <li><code>{{ trigger.event.data.alert }}</code>: il tipo di avviso, es. <code>theft</code></li>
+      <li><code>{{ trigger.event.data.level }}</code>: <code>info</code>, <code>warning</code> o <code>critical</code>, come impostato nella regola Runic</li>
+      <li><code>{{ trigger.event.data.message }}</code>: il testo di Runic, nella lingua del tuo account</li>
+      <li><code>{{ trigger.event.data.position.lat }}</code>, <code>{{ trigger.event.data.position.lon }}</code></li>
+      <li><code>{{ trigger.event.data.data.poi_id }}</code>, <code>{{ trigger.event.data.direction }}</code>: per le geofence</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="sim">
+    <h2 id="sim">Provalo: invia un avviso</h2>
+    <p class="muted">Un veicolo di esempio, “Furgone 12”, con i dati di esempio della documentazione API di Runic. Scegli cosa invia Runic e guarda cosa ne fa l'integrazione.</p>
+    <div class="controls" role="group" aria-label="Scegli cosa invia Runic">
+      <button id="b-movement" data-scn="movement" aria-pressed="true">Il veicolo parte</button>
+      <button id="b-poi" data-scn="poi">Entra in una zona</button>
+      <button id="b-theft" data-scn="theft">Allarme furto</button>
+      <button id="b-dup" data-scn="dup">Stesso avviso di nuovo (nuovo tentativo)</button>
+      <button id="b-bad" data-scn="bad">Richiesta contraffatta</button>
+      <button id="b-poll" data-scn="poll">Polling ogni 5 minuti: fermo</button>
+      <button id="b-reset" class="ghost">Ripristina</button>
+    </div>
+    <div class="sim">
+      <div class="panel">
+        <span class="eyebrow" id="req-label">Runic invia</span>
+        <pre id="req" aria-live="polite"></pre>
+        <h3>L'integrazione</h3>
+        <ol class="steps" id="steps"></ol>
+        <div class="response" id="resp"></div>
+      </div>
+      <div class="panel">
+        <span class="eyebrow">Home Assistant</span>
+        <h3>Entità</h3>
+        <div class="entities">
+          <div class="entity" id="e-tracker"><span class="id">device_tracker.furgone_12</span><span class="val" id="v-tracker"></span></div>
+          <div class="entity" id="e-moving"><span class="id">binary_sensor.furgone_12_moving</span><span class="val" id="v-moving"></span></div>
+          <div class="entity" id="e-alert"><span class="id">event.furgone_12_last_alert</span><span class="val" id="v-alert"></span></div>
+        </div>
+        <h3>Evento generato</h3>
+        <pre id="evt"></pre>
+        <h3>Automazione che partirebbe</h3>
+        <pre id="auto"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="limits">
+    <h2 id="limits">Cosa la versione 0.3.0 non fa ancora</h2>
+    <ul class="limits">
+      <li>Il sensore “in movimento” si spegne solo al polling successivo, ogni 5 minuti. Runic non ha un avviso di “fermo”.</li>
+      <li>Non ci sono ancora sensori per tensione della batteria, carburante o contachilometri, anche se l'API di Runic li fornisce.</li>
+      <li>La configurazione chiede un segreto di firma del webhook, anche se per ora ti serve solo il polling della posizione.</li>
+      <li>I veicoli aggiunti in seguito al tuo account Runic compaiono solo dopo aver ricaricato l'integrazione.</li>
+    </ul>
+  </section>
+
+  <footer>Codice sorgente: <span class="mono">github.com/martineo14/ha-runic</span>. Formati dei dati dalla documentazione Runic Vehicle Monitoring API 1.7.0 su developers.runic.io.</footer>
+</main>
+
+<script>
+const START = { lat: 45.0, lon: 12.0, status: "STOP" };
+let state = { ...START };
+const seen = new Set();
+
+const base = (id, type, data, message, level, pos) => ({
+  id, type, created_at: "2026-09-28T15:21:21Z", api_version: "2026-10-01",
+  company: { id: 16665, name: "Acme Logistics" }, alert_rule_id: 84449, level,
+  vehicle: { id: 58806, name: "Furgone 12", plate: "AB123CD", device_id: 40371 },
+  position: pos, data, message
+});
+const ALERTS = {
+  movement: base("evt_44133984", "alert.movement", {}, "Vehicle is running", "info", { lat: 45.057208, lon: 12.056632, at: "2026-09-28T15:21:05Z" }),
+  poi: base("evt_44134002", "alert.poi_area", { poi_id: 55, direction: "in" }, "Alert", "info", { lat: 45.061230, lon: 12.071904, at: "2026-09-28T15:34:40Z" }),
+  theft: base("evt_44134117", "alert.theft", {}, "Theft alarm", "critical", { lat: 45.061230, lon: 12.071904, at: "2026-09-28T22:02:13Z" })
+};
+const DEV = "a1b2c3d4e5f6  # il tuo veicolo, scelto nell'editor";
+const AUTOS = {
+  "alert.movement": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: movement\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "{{ trigger.event.data.vehicle_name }} è partito"`,
+  "alert.poi_area": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: poi_enter\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
+  "alert.theft": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "FURTO: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
+};
+const ALERT_NAMES = {
+  movement: "Partito", poi_area: "Entrato o uscito da un punto di interesse", theft: "Allarme furto"
+};
+
+const TRIGGER_REF = [
+  ["Pulsante antipanico premuto", "panic_button"], ["Allarme furto", "theft"], ["Rimorchiato (in movimento a quadro spento)", "tow"],
+  ["Veicolo parcheggiato spostato", "parking_moved"], ["Disturbo GSM (jamming) rilevato", "jamming"], ["Cavo di alimentazione tagliato", "cable_cut"],
+  ["Manomissione del dispositivo", "tamper"], ["Incidente rilevato", "accident"], ["Limite di velocità superato", "speed_limit"],
+  ["Entrato in un punto di interesse", "poi_enter"], ["Uscito da un punto di interesse", "poi_exit"],
+  ["Entrato o uscito da un punto di interesse", "poi_area"], ["Partito", "movement"],
+  ["Ingresso digitale cambiato", "input_activation"], ["Allarme del dispositivo", "device_alarm"], ["Batteria del veicolo scarica", "low_battery"],
+  ["Batteria del localizzatore scarica", "low_battery_internal"], ["Non raggiungibile", "offline"], ["Variazione del carburante (CAN)", "fuel"],
+  ["Rifornimento o prelievo dal serbatoio", "fuel_tank"], ["Manutenzione in scadenza", "maintenance"]
+];
+
+const DEVICE = "a1b2c3d4e5f6  # scelto nell'editor";
+const RECIPES = [
+  { title: "Allarme furto: avviso critico sul telefono", kind: "hook",
+    text: "Supera la modalità Non disturbare su iPhone e dice dove si trova il veicolo.",
+    yaml: `alias: Allarme furto Runic
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: theft
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "Allarme furto: {{ trigger.event.data.vehicle_name }}"
+      message: "{{ trigger.event.data.plate }} in {{ trigger.event.data.position.lat }}, {{ trigger.event.data.position.lon }}"
+      data:
+        push:
+          interruption-level: critical` },
+  { title: "Arrivo a un punto di interesse: apri il cancello", kind: "hook",
+    text: "Usa i punti di interesse che hai disegnato nell'app Runic. La condizione lo limita a un solo punto di interesse. Trovi il suo id nei dettagli dell'entità Ultimo avviso.",
+    yaml: `alias: Apri il cancello quando arriva il camion
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: poi_enter
+conditions:
+  - "{{ trigger.event.data.data.poi_id == 55 }}"
+actions:
+  - action: cover.open_cover
+    target:
+      entity_id: cover.yard_gate` },
+  { title: "Rimorchiato o spostato mentre era parcheggiato", kind: "hook",
+    text: "Due trigger in un'unica automazione, entrambi sullo stesso veicolo. Ognuno dei due invia la notifica.",
+    yaml: `alias: Veicolo Runic spostato senza conducente
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: tow
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: parking_moved
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "{{ trigger.event.data.vehicle_name }}: {{ trigger.event.data.message }}"` },
+  { title: "Limite di velocità superato: registralo", kind: "hook",
+    text: "Il limite di velocità di Runic si imposta nella regola di avviso nell'app Runic. Questa automazione ne tiene traccia nel registro.",
+    yaml: `alias: Registra eccesso di velocità Runic
+triggers:
+  - trigger: device
+    domain: runic
+    device_id: ${DEVICE}
+    type: speed_limit
+actions:
+  - action: logbook.log
+    data:
+      name: "{{ trigger.event.data.vehicle_name }}"
+      message: "ha superato il limite di velocità ({{ trigger.event.data.created_at }})"` },
+  { title: "Qualsiasi avviso critico, da qualsiasi veicolo", kind: "hook",
+    text: "Un'unica automazione per tutta la flotta. Reagisce a ogni avviso la cui regola Runic è impostata come critica.",
+    yaml: `alias: Qualsiasi avviso Runic critico
+triggers:
+  - trigger: event
+    event_type: runic_event
+    event_data:
+      level: critical
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "{{ trigger.event.data.vehicle_name }}"
+      message: "{{ trigger.event.data.message }}"` },
+  { title: "Il veicolo arriva a casa", kind: "poll",
+    text: "Usa una zona di Home Assistant, quindi funziona senza il webhook. Può richiedere fino a 5 minuti, l'intervallo di polling.",
+    yaml: `alias: Camion 3 è a casa
+triggers:
+  - trigger: zone
+    entity_id: device_tracker.camion_3
+    zone: zone.home
+    event: enter
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.driveway` },
+  { title: "Guida oltre i 120 km/h", kind: "poll",
+    text: "Una soglia tutta tua, letta dal sensore di velocità a ogni aggiornamento.",
+    yaml: `alias: Camion 3 oltre i 120 km/h
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.camion_3_speed
+    above: 120
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "Camion 3 sta andando a {{ states('sensor.camion_3_speed') }} km/h"` },
+  { title: "Parcheggiato da 30 minuti", kind: "poll",
+    text: "Scatta quando il sensore di movimento è spento da 30 minuti di fila.",
+    yaml: `alias: Furgone 12 parcheggiato da 30 minuti
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.furgone_12_moving
+    to: "off"
+    for: "00:30:00"
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: "Furgone 12 è parcheggiato da 30 minuti"` }
+];
+
+function renderRecipes() {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  document.getElementById("recipes").innerHTML = RECIPES.map((r, i) => `
+    <article class="recipe">
+      <div class="about">
+        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Webhook</span>' : '<span class="chip chip-poll">Solo polling</span>'}</span>
+        <h3>${r.title}</h3>
+        <p class="note">${r.text}</p>
+      </div>
+      <div class="code">
+        <pre id="y-${i}">${esc(r.yaml)}</pre>
+        <button type="button" id="copy-${i}" data-copy="${i}">Copia</button>
+      </div>
+    </article>`).join("");
+  document.getElementById("ref").innerHTML = TRIGGER_REF.map(([n, t]) => `<li><span>${n}</span><code>${t}</code></li>`).join("");
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => {
+    const pre = document.getElementById(`y-${b.dataset.copy}`);
+    const done = () => { b.textContent = "Copiato"; setTimeout(() => (b.textContent = "Copia"), 1500); };
+    const select = () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selezionato: premi Ctrl+C"; };
+    try { navigator.clipboard.writeText(pre.textContent).then(done, select); } catch { select(); }
+  }));
+}
+let lastAlert = null;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (o) => JSON.stringify(o, null, 2);
+const headers = (id, sig) => `POST /api/webhook/<il tuo id>\nwebhook-id: ${id}\nwebhook-timestamp: 1790608881\nwebhook-signature: ${sig}\n\n`;
+
+function setSteps(list) {
+  $("steps").innerHTML = list.map(([cls, mark, text]) =>
+    `<li class="s-${cls}"><span class="mark">${mark}</span><span>${text}</span></li>`).join("");
+}
+function renderEntities(changedTracker, changedMoving, changedAlert = false) {
+  $("v-tracker").textContent = `${state.lat.toFixed(6)}, ${state.lon.toFixed(6)}`;
+  $("v-moving").textContent = state.status === "RUN" ? "acceso (in movimento)" : "spento (fermo)";
+  $("v-alert").textContent = state.alert ? ALERT_NAMES[state.alert] : "sconosciuto (nessun avviso)";
+  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert]]) {
+    $(el).classList.remove("changed");
+    if (on) { void $(el).offsetWidth; $(el).classList.add("changed"); }
+  }
+}
+function eventData(a) {
+  const alert = a.type.replace("alert.", "");
+  return { id: a.id, type: a.type, alert, device_id: "a1b2c3d4e5f6", direction: a.data.direction ?? null, level: a.level, created_at: a.created_at, vehicle_id: a.vehicle.id,
+    vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message };
+}
+
+function run(scn) {
+  document.querySelectorAll("[data-scn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scn === scn)));
+  $("req-label").textContent = scn === "poll" ? "Home Assistant chiede a Runic" : "Runic invia";
+
+  if (scn === "poll") {
+    const v = { id: 58806, name: "Furgone 12", plate: "AB123CD", latitude: state.lat, longitude: state.lon, speed: 0, timestamp: 1790609100, status: "RUN" };
+    $("req").textContent = `GET https://api.runic.io/v1/vehicles/58806\nAuthorization: Bearer <il tuo token>\n\n← ${fmt({ vehicle: v })}\n\nRunic dice ancora RUN: il localizzatore parcheggiato sta inviando heartbeat.`;
+    const changed = state.status !== "STOP";
+    state.status = "STOP";
+    setSteps([["ok", "✓", "Runic ha accettato il token API."], ["ok", "✓", "La velocità è 0 km/h, quindi il sensore di movimento è spento, qualunque cosa dica lo stato di Runic."], ["idle", "–", "Nessun evento generato: il polling aggiorna solo le entità."]]);
+    $("resp").textContent = "";
+    $("evt").textContent = "(nessuno)";
+    $("auto").textContent = "Qualsiasi automazione avviata dalle entità stesse, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.furgone_12_moving\n    to: \"off\"";
+    renderEntities(false, changed);
+    return;
+  }
+
+  if (scn === "bad") {
+    const a = ALERTS.movement;
+    $("req").textContent = headers("evt_99999999", "v1,Zm9yZ2VkLXNpZ25hdHVyZQ==") + fmt({ ...a, id: "evt_99999999", type: "alert.theft" });
+    setSteps([["bad", "✗", "La firma non corrisponde al tuo segreto <code>whsec_…</code>. Richiesta rifiutata."], ["idle", "–", "Controllo dei duplicati: non raggiunto."], ["idle", "–", "Niente è stato attivato, niente è cambiato."]]);
+    $("resp").innerHTML = `<span style="color:var(--bad)">← 401 Unauthorized</span> <span class="muted">· viene scritto un avviso nel log di Home Assistant</span>`;
+    $("evt").textContent = "(nessuno)";
+    $("auto").textContent = "(nessuna)";
+    renderEntities(false, false);
+    return;
+  }
+
+  const a = scn === "dup" ? (lastAlert || ALERTS.movement) : ALERTS[scn];
+  $("req").textContent = headers(a.id, "v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4=") + fmt(a);
+
+  if (seen.has(a.id)) {
+    setSteps([["ok", "✓", "Firma valida, timestamp entro 5 minuti."], ["skip", "↺", `<code>${a.id}</code> è già stato gestito. Runic l'ha inviato di nuovo (un nuovo tentativo), quindi viene ignorato.`], ["idle", "–", "Niente viene riattivato, quindi la tua automazione non parte due volte."]]);
+    $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· Runic smette di riprovare</span>`;
+    $("evt").textContent = "(nessuno: duplicato)";
+    $("auto").textContent = "(non eseguita di nuovo)";
+    renderEntities(false, false);
+    return;
+  }
+
+  seen.add(a.id);
+  lastAlert = a;
+  const moved = a.position && (a.position.lat !== state.lat || a.position.lon !== state.lon);
+  const wasStatus = state.status;
+  if (a.position) { state.lat = a.position.lat; state.lon = a.position.lon; }
+  if (a.type === "alert.movement") state.status = "RUN";
+  state.alert = a.type.replace("alert.", "");
+  const steps = [["ok", "✓", "Firma valida, timestamp entro 5 minuti."], ["ok", "✓", `Nuovo avviso <code>${a.id}</code>, memorizzato così i nuovi tentativi vengono ignorati.`], ["ok", "✓", `Attivato il trigger “${ALERT_NAMES[a.type.replace("alert.", "")]}” di Furgone 12 e generato <code>runic_event</code> con tipo <code>${a.type}</code>.`]];
+  if (moved) steps.push(["ok", "✓", "Furgone 12 spostato sulla mappa nella posizione dell'avviso."]);
+  steps.push(["ok", "✓", "Chiesta a Runic l'ultima velocità del veicolo."]);
+  if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "La velocità è 38 km/h con una rilevazione recente, quindi il sensore di movimento si è acceso."]);
+  setSteps(steps);
+  $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· risposta ben entro il limite di 10 secondi di Runic</span>`;
+  $("evt").textContent = "runic_event\n" + fmt(eventData(a));
+  $("auto").textContent = AUTOS[a.type];
+  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true);
+}
+
+function reset() { state = { ...START }; seen.clear(); lastAlert = null; run("movement"); }
+
+document.querySelectorAll("[data-scn]").forEach(b => b.addEventListener("click", () => run(b.dataset.scn)));
+$("b-reset").addEventListener("click", reset);
+renderRecipes();
+reset();
+</script>

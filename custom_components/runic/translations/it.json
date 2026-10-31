@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "API Runic.io",
+        "description": "Inserisci il token API fornito dal supporto Runic (runic@runic.io).",
+        "data": {
+          "api_token": "Token API"
+        }
+      },
+      "webhook": {
+        "title": "Webhook Runic.io",
+        "description": "1. Apri [Webhook di Runic]({portal_url}) e aggiungi un endpoint con questo URL:\n\n`{webhook_url}`\n\n2. Seleziona i tipi di avviso che vuoi ricevere in Home Assistant.\n3. Incolla qui sotto il segreto di firma (`whsec_…`).\n\nGli avvisi arrivano solo per i veicoli coperti da una regola di avviso nell'app Runic.",
+        "data": {
+          "signing_secret": "Segreto di firma"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Runic ha rifiutato il token API.",
+      "cannot_connect": "Impossibile raggiungere api.runic.io.",
+      "invalid_secret": "Il segreto di firma inizia con whsec_."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "speed": {
+        "name": "Velocità"
+      }
+    },
+    "event": {
+      "alert": {
+        "name": "Ultimo avviso",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "panic_button": "Pulsante antipanico premuto",
+              "theft": "Allarme furto",
+              "tow": "Rimorchiato (in movimento a quadro spento)",
+              "parking_moved": "Veicolo parcheggiato spostato",
+              "jamming": "Disturbo GSM (jamming) rilevato",
+              "cable_cut": "Cavo di alimentazione tagliato",
+              "tamper": "Manomissione del dispositivo",
+              "accident": "Incidente rilevato",
+              "speed_limit": "Limite di velocità superato",
+              "poi_area": "Entrato o uscito da un punto di interesse",
+              "movement": "Partito",
+              "input_activation": "Ingresso digitale cambiato",
+              "device_alarm": "Allarme del dispositivo",
+              "low_battery": "Batteria del veicolo scarica",
+              "low_battery_internal": "Batteria del localizzatore scarica",
+              "offline": "Non raggiungibile",
+              "fuel": "Variazione del carburante (CAN)",
+              "fuel_tank": "Rifornimento o prelievo dal serbatoio",
+              "maintenance": "Manutenzione in scadenza"
+            }
+          }
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "panic_button": "Pulsante antipanico premuto",
+      "theft": "Allarme furto",
+      "tow": "Rimorchiato (in movimento a quadro spento)",
+      "parking_moved": "Veicolo parcheggiato spostato",
+      "jamming": "Disturbo GSM (jamming) rilevato",
+      "cable_cut": "Cavo di alimentazione tagliato",
+      "tamper": "Manomissione del dispositivo",
+      "accident": "Incidente rilevato",
+      "speed_limit": "Limite di velocità superato",
+      "poi_area": "Entrato o uscito da un punto di interesse",
+      "movement": "Partito",
+      "input_activation": "Ingresso digitale cambiato",
+      "device_alarm": "Allarme del dispositivo",
+      "low_battery": "Batteria del veicolo scarica",
+      "low_battery_internal": "Batteria del localizzatore scarica",
+      "offline": "Non raggiungibile",
+      "fuel": "Variazione del carburante (CAN)",
+      "fuel_tank": "Rifornimento o prelievo dal serbatoio",
+      "maintenance": "Manutenzione in scadenza",
+      "poi_enter": "Entrato in un punto di interesse",
+      "poi_exit": "Uscito da un punto di interesse"
+    }
+  }
+}

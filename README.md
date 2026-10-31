@@ -1,3 +1,5 @@
+🇮🇹 [Leggi in italiano](README.it.md)
+
 # Runic.io for Home Assistant
 
 Custom integration for [Runic.io](https://www.runic.io) GPS trackers.
