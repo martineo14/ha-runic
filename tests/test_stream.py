@@ -236,3 +236,129 @@ async def test_config_flow_stream_choice(hass: HomeAssistant, runic: FakeRunic):
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_replayed_alert_after_restart_fires_once(hass: HomeAssistant, runic: FakeRunic):
+    """At-least-once delivery: an alert Runic sends again after a restart must not fire twice."""
+
+    async def first(fake, ws):
+        await fake.hello_and_resume(ws, last_seq=10)
+        await ws.send_json({"type": "alert", "seq": 11, "alert": alert("evt_11")})
+        await fake.serve(ws, until_closed=True)
+
+    async def after_restart(fake, ws):
+        # Runic replays seq 11 (e.g. the restart happened before the seq was saved), then a new one.
+        await fake.hello_and_resume(ws, last_seq=12)
+        await ws.send_json({"type": "alert", "seq": 11, "alert": alert("evt_11")})
+        await ws.send_json({"type": "alert", "seq": 12, "alert": alert("evt_12")})
+        await fake.serve(ws, until_closed=True)
+
+    runic.scripts = [first, after_restart]
+    events = async_capture_events(hass, EVENT_RUNIC)
+    entry = await setup_entry(hass)
+    await wait_for(lambda: len(events) == 1)
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await wait_for(lambda: any(e.data["id"] == "evt_12" for e in events))
+    assert [e.data["id"] for e in events] == ["evt_11", "evt_12"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_webhook_copy_of_a_stream_alert_after_restart_fires_once(
+    hass: HomeAssistant, runic: FakeRunic, hass_client_no_auth
+):
+    """Stream and webhook both on: the same alert arriving through each, across a restart, fires once."""
+    from custom_components.runic.const import CONF_SIGNING_SECRET
+    from homeassistant.const import CONF_WEBHOOK_ID
+
+    from .test_runic import SECRET, sign
+
+    async def stream_once(fake, ws):
+        await fake.hello_and_resume(ws, last_seq=20)
+        await ws.send_json({"type": "alert", "seq": 21, "alert": alert("evt_21")})
+        await fake.serve(ws, until_closed=True)
+
+    runic.scripts = [stream_once]
+    events = async_capture_events(hass, EVENT_RUNIC)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Runic.io",
+        data={CONF_API_TOKEN: "good", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
+        options={CONF_STREAM: True},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await wait_for(lambda: len(events) == 1)
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_client_no_auth()
+    body = json.dumps(alert("evt_21")).encode()
+    resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body, msg_id="evt_21"))
+    assert resp.status == 200
+    await hass.async_block_till_done()
+    assert [e.data["id"] for e in events] == ["evt_21"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_alert_is_on_disk_before_any_shutdown(hass: HomeAssistant, runic: FakeRunic, hass_storage):
+    """A crash right after an alert must not lose the record of it: it's written without waiting."""
+
+    async def one(fake, ws):
+        await fake.hello_and_resume(ws, last_seq=30)
+        await ws.send_json({"type": "alert", "seq": 31, "alert": alert("evt_31")})
+        await fake.serve(ws, until_closed=True)
+
+    runic.scripts = [one]
+    events = async_capture_events(hass, EVENT_RUNIC)
+    entry = await setup_entry(hass)
+    await wait_for(lambda: len(events) == 1)
+    key = f"runic.alerts_{entry.entry_id}"
+    await wait_for(lambda: "evt_31" in (hass_storage.get(key) or {}).get("data", {}).get("ids", []), timeout=2)
+    assert hass_storage[key]["data"]["seq"] == 31
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_counter_reset_on_runic_side_still_delivers(hass: HomeAssistant, runic: FakeRunic, hass_storage):
+    entry_id = "reset01"
+    hass_storage[f"runic.alerts_{entry_id}"] = {"version": 1, "key": f"runic.alerts_{entry_id}", "data": {"seq": 500, "ids": []}}
+
+    async def after_reset(fake, ws):
+        await fake.hello_and_resume(ws, last_seq=4)           # Runic's counter restarted from zero
+        await ws.send_json({"type": "alert", "seq": 5, "alert": alert("evt_new")})
+        await fake.serve(ws, until_closed=True)
+
+    runic.scripts = [after_reset]
+    events = async_capture_events(hass, EVENT_RUNIC)
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id=entry_id, title="Runic.io", data={CONF_API_TOKEN: "good"}, options={CONF_STREAM: True}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await wait_for(lambda: len(events) == 1)
+    assert runic.resumes == [4]                               # followed the reset instead of waiting for seq 500
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_seq_saved_by_older_versions_is_kept(hass: HomeAssistant, runic: FakeRunic, hass_storage):
+    entry_id = "old01"
+    hass_storage[f"runic.stream_{entry_id}"] = {"version": 1, "key": f"runic.stream_{entry_id}", "data": {"seq": 77}}
+
+    async def resume(fake, ws):
+        await fake.hello_and_resume(ws, last_seq=80)
+        await fake.serve(ws, until_closed=True)
+
+    runic.scripts = [resume]
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id=entry_id, title="Runic.io", data={CONF_API_TOKEN: "good"}, options={CONF_STREAM: True}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await wait_for(lambda: len(runic.resumes) == 1)
+    assert runic.resumes == [77]                              # resumed where 0.7.0 stopped, nothing skipped
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

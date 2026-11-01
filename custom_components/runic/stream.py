@@ -16,8 +16,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.storage import Store
 
+from .ledger import AlertLedger
 from .const import (
     CONF_STREAM,
     DOMAIN,
@@ -54,7 +54,8 @@ class RunicStream:
         entry_id: str,
         session: aiohttp.ClientSession,
         token: str,
-        on_alert: Callable[[dict[str, Any]], None],
+        ledger: AlertLedger,
+        on_alert: Callable[[dict[str, Any], int], None],
         on_gap: Callable[[], Awaitable[None]],
     ) -> None:
         self._hass = hass
@@ -63,14 +64,11 @@ class RunicStream:
         self._token = token
         self._on_alert = on_alert
         self._on_gap = on_gap
-        self._store: Store[dict[str, int]] = Store(hass, 1, f"{DOMAIN}.stream_{entry_id}")
-        self._last_seq: int | None = None
+        self._ledger = ledger
         self.connected = False
 
     async def run(self) -> None:
         """Run until cancelled, or until Runic rejects the token (raises StreamAuthError)."""
-        stored = await self._store.async_load()
-        self._last_seq = stored.get("seq") if stored else None
         delay = 1.0
         while True:
             wait: float | None = None
@@ -99,11 +97,6 @@ class RunicStream:
             _LOGGER.debug("Reconnecting to the Runic stream in %.0f s", sleep)
             await asyncio.sleep(sleep)
             delay = min(delay * 2, STREAM_BACKOFF_MAX)
-
-    async def async_save_now(self) -> None:
-        """Write the last processed seq without waiting for the delayed save."""
-        if self._last_seq is not None:
-            await self._store.async_save({"seq": self._last_seq})
 
     async def _connect_once(self) -> None:
         headers = {"Authorization": f"Bearer {self._token}"}
@@ -139,22 +132,28 @@ class RunicStream:
 
     def _resume_point(self, hello: dict[str, Any]) -> int:
         last_seq = hello["last_seq"]
-        if self._last_seq is None:
+        stored = self._ledger.last_seq
+        if stored is None:
             return last_seq  # first connect: skip alerts from before the integration existed
-        if self._last_seq > last_seq:
-            # Runic's counter is behind what we stored: a reset on their side. Don't wait for it to catch up.
-            _LOGGER.warning("Runic stream seq went back (%s → %s); resuming from now", self._last_seq, last_seq)
+        if stored > last_seq:
+            # Runic's counter is behind what we stored: a reset on their side. Follow it, or every
+            # new alert would look like a replay.
+            _LOGGER.warning("Runic stream seq went back (%s → %s); resuming from now", stored, last_seq)
+            self._ledger.reset_seq(last_seq)
             return last_seq
-        return self._last_seq
+        return stored
 
     async def _handle(self, message: dict[str, Any]) -> None:
         kind = message.get("type")
         if kind == "alert":
+            seq = int(message["seq"])
             alert = message.get("alert")
-            if isinstance(alert, dict) and "id" in alert and "type" in alert:
-                self._on_alert(alert)
-            self._last_seq = message["seq"]
-            self._store.async_delay_save(lambda: {"seq": self._last_seq}, 5)
+            if self._ledger.already_processed(seq):
+                _LOGGER.debug("Skipping replayed Runic alert seq %s", seq)
+            elif isinstance(alert, dict) and "id" in alert and "type" in alert:
+                self._on_alert(alert, seq)
+            else:
+                self._ledger.record(None, seq)  # unreadable: don't ask for it again
         elif kind == "gap":
             _LOGGER.info("Missed Runic alerts older than the stream keeps; refreshing vehicles")
             await self._on_gap()
