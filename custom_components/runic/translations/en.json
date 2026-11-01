@@ -14,12 +14,30 @@
         "data": {
           "signing_secret": "Signing secret"
         }
+      },
+      "delivery": {
+        "title": "How should alerts reach Home Assistant?",
+        "description": "Both need an endpoint in the [Runic portal]({portal_url}) with the alert types you want, and an alert rule for each type in the Runic app.",
+        "menu_options": {
+          "stream": "Real-time stream (recommended): no public URL needed. Add a “Real-time stream” endpoint in the portal.",
+          "webhook": "Webhook: Runic calls Home Assistant, which must be reachable from the internet over HTTPS."
+        }
+      },
+      "reauth_confirm": {
+        "title": "New Runic API token",
+        "description": "Runic no longer accepts the current token: it was revoked, expired or lost access. Enter a new token from Runic Support.",
+        "data": {
+          "api_token": "API token"
+        }
       }
     },
     "error": {
       "invalid_auth": "Runic rejected the API token.",
       "cannot_connect": "Could not reach api.runic.io.",
       "invalid_secret": "The signing secret starts with whsec_."
+    },
+    "abort": {
+      "reauth_successful": "The new token works. Runic.io is connected again."
     }
   },
   "entity": {
@@ -57,6 +75,11 @@
           }
         }
       }
+    },
+    "binary_sensor": {
+      "stream": {
+        "name": "Alert stream"
+      }
     }
   },
   "device_automation": {
@@ -82,6 +105,17 @@
       "maintenance": "Maintenance due",
       "poi_enter": "Entered a point of interest",
       "poi_exit": "Left a point of interest"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Runic.io options",
+        "description": "The real-time stream receives alerts without a public URL. It needs a “Real-time stream” endpoint in the Runic portal. A webhook set up earlier keeps working alongside it.",
+        "data": {
+          "stream": "Use the real-time alert stream"
+        }
+      }
     }
   }
 }

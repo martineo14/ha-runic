@@ -6,11 +6,20 @@ DOMAIN = "runic"
 EVENT_RUNIC = f"{DOMAIN}_event"
 
 API_BASE = "https://api.runic.io/v1"
+STREAM_URL = "wss://api.runic.io/v1/alerts/stream"
 
 CONF_API_TOKEN = "api_token"
 CONF_SIGNING_SECRET = "signing_secret"
+CONF_STREAM = "stream"
 
-# Polling is only a fallback; webhooks push positions as alerts fire.
+# Alert stream timings, from Runic's "Alert stream" docs: a connection silent for 2 minutes is closed.
+STREAM_PING_INTERVAL = 30
+STREAM_HELLO_TIMEOUT = 30
+STREAM_BACKOFF_MAX = 300
+STREAM_STABLE_AFTER = 60
+SIGNAL_STREAM_STATE = f"{DOMAIN}_stream_state_{{}}"
+
+# Polling is only a fallback; alerts from the stream or webhooks push positions as they fire.
 SCAN_INTERVAL = timedelta(minutes=5)
 
 # A vehicle counts as moving only when its last GPS fix is recent and fast enough.

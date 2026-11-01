@@ -11,8 +11,11 @@ Integrazione personalizzata per i localizzatori GPS [Runic.io](https://www.runic
   - `binary_sensor.<veicolo>_moving`: acceso quando l'ultima rilevazione ha meno di 15 minuti ed è a 5 km/h o più.
     Lo stato `RUN`/`STOP` di Runic viene conservato solo come attributo `runic_status`: indica `RUN` ogni volta
     che il localizzatore è attivo (heartbeat, accensione), anche quando il veicolo è parcheggiato.
-- Gli **avvisi** arrivano all'istante come webhook Runic firmati e vengono pubblicati sul bus degli eventi di HA come `runic_event`.
-  Vengono verificati le firme (Standard Webhooks, HMAC-SHA256), i timestamp e le consegne duplicate.
+- Gli **avvisi** arrivano in pochi secondi tramite lo **stream in tempo reale** di Runic: Home Assistant apre
+  una WebSocket in uscita, quindi non servono URL pubblici, port forwarding o Nabu Casa. Ogni avviso diventa
+  un'attivazione del dispositivo e un `runic_event`. I webhook firmati sono ancora supportati, da soli o insieme
+  allo stream. Dopo una disconnessione lo stream riprende da dove si era fermato (Runic conserva 72 ore) e i
+  duplicati vengono scartati.
 
 ## Installazione
 
@@ -29,13 +32,20 @@ Copia `custom_components/runic` nella cartella `config/custom_components/` di HA
 
 ### Configurazione
 
-1. Impostazioni → Dispositivi e servizi → Aggiungi integrazione → **Runic.io**.
-2. Incolla il tuo token API (rilasciato dal supporto Runic, runic@runic.io).
-3. Aggiungi l'URL del webhook mostrato nel [portale Runic](https://developers.runic.io/portal/webhooks),
-   scegli i tipi di avviso e incolla di nuovo in HA il segreto di firma `whsec_…`.
+1. Nel [portale Runic](https://developers.runic.io/portal/webhooks): **Add endpoint** → **Real-time stream**,
+   e seleziona i tipi di avviso che vuoi. Uno stream per azienda; non c'è nessun URL o segreto da copiare.
+2. In Home Assistant: Impostazioni → Dispositivi e servizi → Aggiungi integrazione → **Runic.io**.
+3. Incolla il tuo token API (rilasciato dal supporto Runic, runic@runic.io), poi scegli **Stream in tempo reale**.
+4. Provalo: premi **Send test event** sull'endpoint dello stream nel portale. In Strumenti per sviluppatori →
+   Eventi, in ascolto su `runic_event`, compare un `alert.test`.
 
-HA deve essere raggiungibile da internet in HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy)
-e l'URL non deve fare redirect: Runic non segue i redirect.
+Il sensore **Stream avvisi** sul dispositivo *Runic.io* indica se lo stream è collegato.
+Se Runic revoca o fa scadere il token, Home Assistant ti chiede un token nuovo.
+
+**Con un webhook invece:** scegli **Webhook** al passo 3, aggiungi nel portale l'URL mostrato da Home Assistant
+come endpoint webhook e incolla il segreto di firma `whsec_…`. In questo caso Home Assistant deve essere
+raggiungibile da internet in HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy) e l'URL non deve fare redirect.
+Un'integrazione configurata con webhook prima della 0.5.0 lo mantiene: attiva lo stream da **Runic.io → Configura**.
 
 ## Automazioni
 
@@ -48,8 +58,8 @@ Ogni veicolo ha un'attivazione per ogni tipo di avviso Runic. Aggiungi attivazio
 Ogni veicolo ha anche un'entità `event.<veicolo>_last_alert` (*Ultimo avviso*) che mostra il suo avviso più recente nella dashboard,
 nella cronologia e nel registro.
 
-Un tipo di avviso scatta solo se in Runic sono configurate due cose: il tipo è selezionato sul tuo endpoint webhook
-(developers.runic.io → Webhooks) ed esiste una regola di avviso per quel tipo nell'app Runic.
+Un tipo di avviso scatta solo se in Runic sono configurate due cose: il tipo è selezionato sul tuo endpoint stream
+o webhook (developers.runic.io → Webhooks) ed esiste una regola di avviso per quel tipo nell'app Runic.
 
 ### In YAML
 

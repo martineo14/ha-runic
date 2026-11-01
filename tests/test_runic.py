@@ -110,6 +110,10 @@ async def test_config_flow(hass: HomeAssistant, aioclient_mock):
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_API_TOKEN: "good"}
     )
+    assert result["type"] is FlowResultType.MENU
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "webhook"}
+    )
     assert result["step_id"] == "webhook"
     assert "/api/webhook/" in result["description_placeholders"]["webhook_url"]
 

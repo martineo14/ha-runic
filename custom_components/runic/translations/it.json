@@ -14,12 +14,30 @@
         "data": {
           "signing_secret": "Segreto di firma"
         }
+      },
+      "delivery": {
+        "title": "Come devono arrivare gli avvisi a Home Assistant?",
+        "description": "In entrambi i casi serve un endpoint nel [portale Runic]({portal_url}) con i tipi di avviso che vuoi, e una regola di avviso per ogni tipo nell'app Runic.",
+        "menu_options": {
+          "stream": "Stream in tempo reale (consigliato): non serve un URL pubblico. Aggiungi un endpoint “Real-time stream” nel portale.",
+          "webhook": "Webhook: Runic chiama Home Assistant, che deve essere raggiungibile da internet in HTTPS."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nuovo token API Runic",
+        "description": "Runic non accetta più il token attuale: è stato revocato, è scaduto o non ha più accesso. Inserisci un nuovo token fornito dal supporto Runic.",
+        "data": {
+          "api_token": "Token API"
+        }
       }
     },
     "error": {
       "invalid_auth": "Runic ha rifiutato il token API.",
       "cannot_connect": "Impossibile raggiungere api.runic.io.",
       "invalid_secret": "Il segreto di firma inizia con whsec_."
+    },
+    "abort": {
+      "reauth_successful": "Il nuovo token funziona. Runic.io è di nuovo collegato."
     }
   },
   "entity": {
@@ -57,6 +75,11 @@
           }
         }
       }
+    },
+    "binary_sensor": {
+      "stream": {
+        "name": "Stream avvisi"
+      }
     }
   },
   "device_automation": {
@@ -82,6 +105,17 @@
       "maintenance": "Manutenzione in scadenza",
       "poi_enter": "Entrato in un punto di interesse",
       "poi_exit": "Uscito da un punto di interesse"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni Runic.io",
+        "description": "Lo stream in tempo reale riceve gli avvisi senza un URL pubblico. Richiede un endpoint “Real-time stream” nel portale Runic. Un webhook configurato prima continua a funzionare insieme allo stream.",
+        "data": {
+          "stream": "Usa lo stream di avvisi in tempo reale"
+        }
+      }
     }
   }
 }
