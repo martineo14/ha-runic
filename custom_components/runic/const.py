@@ -19,6 +19,21 @@ STREAM_BACKOFF_MAX = 300
 STREAM_STABLE_AFTER = 60
 SIGNAL_STREAM_STATE = f"{DOMAIN}_stream_state_{{}}"
 
+# Today's trips and stops: the tracks are large and change slowly.
+TODAY_SCAN_INTERVAL = timedelta(minutes=15)
+
+# Measure ids from the catalogue in Runic's /vehicles/{id}/status docs.
+MEASURE_GSM_SIGNAL = 14
+MEASURE_FIRMWARE = 36
+MEASURE_BATTERY_VOLTAGE = 39
+MEASURE_ENGINE_HOURS_CAN = 41
+MEASURE_FUEL_PERCENT_CAN = 46
+MEASURE_VEHICLE_STATUS = 62  # 0 stopped, 1 running, 2 offline
+MEASURE_ENGINE_HOURS = 71
+MEASURE_FUEL_LITERS_OEM = 224
+
+PORTAL_URL = "https://portal.runic.io"
+
 # Polling is only a fallback; alerts from the stream or webhooks push positions as they fire.
 SCAN_INTERVAL = timedelta(minutes=5)
 

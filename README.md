@@ -47,6 +47,31 @@ internet over HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy), and the URL m
 An integration set up with a webhook before 0.5.0 keeps it: turn on the stream under
 **Runic.io → Configure**.
 
+## Vehicle page
+
+Each vehicle is a device. Its page in Settings → Devices & services shows, depending on what the tracker reports:
+
+| Like Runic's page | Entity |
+|---|---|
+| Parked / driving, last seen | `sensor.<vehicle>_status` (Driving, Parked, Offline), `sensor.<vehicle>_last_seen` |
+| Map and coordinates | `device_tracker.<vehicle>` |
+| Today: distance, driving, trips, stopped | `sensor.<vehicle>_distance_today`, `_driving_time_today`, `_trips_today`, `_stopped_time_today` (every 15 minutes, back to zero each day) |
+| Mileage, engine hours | `sensor.<vehicle>_odometer`, `sensor.<vehicle>_engine_hours` |
+| Service deadline | `sensor.<vehicle>_next_service`, set by Runic's maintenance alert, with the task as an attribute |
+| Also | speed, moving, battery voltage, fuel level, last alert; GSM signal (diagnostic, off by default) |
+
+The device page also shows the plate (as serial number), the tracker firmware and a **Visit** link to the
+Runic portal. Sensors appear only for values the vehicle reports: a car without CAN fuel data gets no fuel sensor.
+Insurance and inspection dates are not in Runic's API, so they can't be shown.
+
+**A Runic-style dashboard:** [`docs/vehicle-dashboard.yaml`](docs/vehicle-dashboard.yaml) recreates the page
+with built-in cards: name with status badges, a large map with today's route, the Today and Vehicle blocks,
+the next service and recent alerts. Create a dashboard, then ⋮ → Edit dashboard → ⋮ → Raw configuration editor,
+paste the file and replace `van_12` with your vehicle's entity name.
+
+Entity ids follow Home Assistant's language when the integration is first added: on an Italian system they
+are `sensor.<vehicle>_velocita`, `_stato`, `_distanza_oggi`… (see the Italian README).
+
 ## How it works
 
 ```mermaid

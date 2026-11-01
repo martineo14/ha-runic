@@ -20,7 +20,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import RunicApiClient
 from .const import CONF_API_TOKEN, CONF_SIGNING_SECRET, DOMAIN, EVENT_RUNIC
-from .coordinator import RunicCoordinator
+from .coordinator import RunicCoordinator, RunicTodayCoordinator
 from .signature import signature_problem
 from .stream import RunicStream, StreamAuthError, uses_stream
 
@@ -31,6 +31,7 @@ PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT, Pl
 @dataclass
 class RunicData:
     coordinator: RunicCoordinator
+    today: RunicTodayCoordinator
     stream: RunicStream | None = None
     # Delivery is at-least-once, and the stream and webhooks can both be on: drop repeats by alert id.
     seen_ids: deque[str] = field(default_factory=lambda: deque(maxlen=500))
@@ -42,9 +43,12 @@ type RunicConfigEntry = ConfigEntry[RunicData]
 async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     token = entry.data[CONF_API_TOKEN]
-    coordinator = RunicCoordinator(hass, entry, RunicApiClient(session, token))
+    client = RunicApiClient(session, token)
+    coordinator = RunicCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = RunicData(coordinator)
+    today = RunicTodayCoordinator(hass, entry, client, coordinator)
+    await today.async_refresh()  # optional extras: a failure here must not block setup
+    entry.runtime_data = RunicData(coordinator, today)
 
     if CONF_WEBHOOK_ID in entry.data:
         webhook.async_register(

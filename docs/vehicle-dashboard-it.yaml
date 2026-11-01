@@ -1,0 +1,72 @@
+# Una pagina in stile Runic per un veicolo, solo con le schede integrate di Home Assistant.
+# Impostazioni → Plance → Aggiungi plancia → aprila → ⋮ → Modifica plancia → ⋮ → Editor di configurazione testuale → incolla.
+# Sostituisci "furgone_12" con il nome entità del tuo veicolo (es. mercedes_glk) e "Furgone 12" con il suo nome.
+views:
+  - title: Furgone 12
+    path: furgone-12
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Furgone 12
+            heading_style: title
+            badges:
+              - type: entity
+                entity: sensor.furgone_12_stato
+              - type: entity
+                entity: sensor.furgone_12_ultimo_rilevamento
+              - type: entity
+                entity: binary_sensor.runic_io_stream_avvisi
+          - type: map
+            entities:
+              - device_tracker.furgone_12
+            hours_to_show: 24          # disegna il percorso di oggi dietro il segnaposto
+            default_zoom: 15
+            grid_options:
+              columns: full
+              rows: 8
+      - type: grid
+        cards:
+          - type: heading
+            heading: Oggi
+            icon: mdi:chart-timeline-variant
+          - type: tile
+            entity: sensor.furgone_12_distanza_oggi
+          - type: tile
+            entity: sensor.furgone_12_tempo_di_guida_oggi
+          - type: tile
+            entity: sensor.furgone_12_viaggi_oggi
+          - type: tile
+            entity: sensor.furgone_12_tempo_in_sosta_oggi
+          - type: heading
+            heading: Veicolo
+            icon: mdi:car
+          - type: tile
+            entity: sensor.furgone_12_contachilometri
+          - type: tile
+            entity: sensor.furgone_12_ore_motore
+          - type: tile
+            entity: sensor.furgone_12_velocita
+          - type: tile
+            entity: sensor.furgone_12_tensione_batteria
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: Scadenze e avvisi
+            icon: mdi:calendar-check
+          - type: tile
+            entity: sensor.furgone_12_prossimo_tagliando
+          - type: tile
+            entity: event.furgone_12_ultimo_avviso
+          - type: logbook
+            target:
+              entity_id:
+                - event.furgone_12_ultimo_avviso
+                - binary_sensor.furgone_12_in_movimento
+            hours_to_show: 48
+            grid_options:
+              columns: full

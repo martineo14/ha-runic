@@ -86,6 +86,24 @@ def test_signature():
     assert verify_signature(SECRET, headers, body)
 
 
+STATUS = {
+    "vehicle_status": [
+        {"measure_id": 36, "type": "STR", "value": "03.28.07", "timestamp": 1785912937},
+        {"measure_id": 39, "type": "FLOAT", "value": 12.6, "timestamp": 1785912937},
+        {"measure_id": 41, "type": "FLOAT", "value": 79.1, "timestamp": 1785912937},
+        {"measure_id": 62, "type": "INT", "value": 0, "timestamp": 1785912937},
+        {"measure_id": 112, "type": "MEAS_COUNT", "value": False, "timestamp": 1785912937},
+    ],
+    "odometer": {"km": 4978, "timestamp": 1785912936, "source": "vehicle"},
+}
+
+
+def mock_extras(aioclient_mock, status=STATUS):
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806/status", json=status)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806/reports", json={"paths": []})
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806/tracks", json={"tracks": [], "stops": []})
+
+
 def test_is_moving():
     now = time.time()
     assert is_moving({"speed": 0, "timestamp": now, "status": "RUN"}, now) is False
@@ -127,6 +145,7 @@ async def test_config_flow(hass: HomeAssistant, aioclient_mock):
 async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aioclient_mock, hass_client_no_auth):
     aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    mock_extras(aioclient_mock)
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
@@ -156,6 +175,7 @@ async def test_webhook_fires_event_and_moves_tracker(hass: HomeAssistant, aiocli
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=38))
+    mock_extras(aioclient_mock)
     for _ in range(2):  # second delivery is a retry and must be dropped
         resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body))
         assert resp.status == 200
@@ -179,6 +199,7 @@ async def test_device_triggers_and_alert_entity(hass: HomeAssistant, aioclient_m
 
     aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    mock_extras(aioclient_mock)
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
@@ -225,3 +246,61 @@ async def test_device_triggers_and_alert_entity(hass: HomeAssistant, aioclient_m
     assert state.attributes["event_type"] == "poi_area"
     assert state.attributes["details"] == {"poi_id": 55, "direction": "in"}
     assert state.attributes["message"] == "La velocità rilevata è 103.0 km/h"
+
+
+async def test_vehicle_page_sensors(hass: HomeAssistant, aioclient_mock, hass_client_no_auth):
+    """The Runic vehicle page, as Home Assistant sensors."""
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.util import dt as dt_util
+
+    today = dt_util.now().date().isoformat()
+    aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806/status", json=STATUS)
+    aioclient_mock.get(
+        f"{API_BASE}/vehicles/58806/reports",
+        json={"paths": [{"vehicle_id": "58806", "date": today, "distance": "6.04", "driving_time": "900", "idle_time": "30"}]},
+    )
+    start = int(time.time()) - 7200
+    aioclient_mock.get(
+        f"{API_BASE}/vehicles/58806/tracks",
+        json={
+            "tracks": [{"from_time": start}, {"from_time": start + 3600}],
+            "stops": [{"from_time": start + 600, "to_time": start + 600 + 49 * 60}],
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = lambda key: hass.states.get(f"sensor.van_12_{key}").state  # noqa: E731
+    assert state("status") == "parked"
+    assert state("odometer") == "4978"
+    assert state("engine_hours") == "79.1"
+    assert state("battery_voltage") == "12.6"
+    assert state("distance_today") == "6.04"
+    assert state("driving_time_today") == "15.0"
+    assert state("trips_today") == "2"
+    assert state("stopped_time_today") == "49.0"
+    assert hass.states.get("sensor.van_12_last_seen").state.startswith("20")
+    assert hass.states.get("sensor.van_12_fuel_level") is None   # no CAN fuel on this vehicle: no empty sensor
+    assert state("next_service") == "unknown"
+
+    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "58806")})
+    assert device.serial_number == "AB123CD"
+    assert device.sw_version == "03.28.07"
+    assert device.configuration_url == "https://portal.runic.io"
+
+    # Runic's maintenance alert fills in the next service date.
+    client = await hass_client_no_auth()
+    body = json.dumps({**ALERT, "id": "evt_m", "type": "alert.maintenance", "data": {"task": "Oil change", "days": 7}}).encode()
+    resp = await client.post("/api/webhook/hook123", data=body, headers=sign(body, msg_id="evt_m"))
+    assert resp.status == 200
+    await hass.async_block_till_done()
+    service = hass.states.get("sensor.van_12_next_service")
+    assert service.state == (dt_util.now().date() + __import__("datetime").timedelta(days=7)).isoformat()
+    assert service.attributes["task"] == "Oil change"

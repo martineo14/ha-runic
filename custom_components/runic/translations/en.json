@@ -44,6 +44,50 @@
     "sensor": {
       "speed": {
         "name": "Speed"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "driving": "Driving",
+          "parked": "Parked",
+          "offline": "Offline"
+        }
+      },
+      "last_seen": {
+        "name": "Last seen"
+      },
+      "odometer": {
+        "name": "Odometer"
+      },
+      "engine_hours": {
+        "name": "Engine hours"
+      },
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
+      "fuel_level": {
+        "name": "Fuel level"
+      },
+      "fuel_volume": {
+        "name": "Fuel in tank"
+      },
+      "gsm_signal": {
+        "name": "GSM signal"
+      },
+      "distance_today": {
+        "name": "Distance today"
+      },
+      "driving_time_today": {
+        "name": "Driving time today"
+      },
+      "trips_today": {
+        "name": "Trips today"
+      },
+      "stopped_time_today": {
+        "name": "Stopped time today"
+      },
+      "next_service": {
+        "name": "Next service"
       }
     },
     "event": {

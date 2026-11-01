@@ -266,9 +266,9 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <h3>Entità</h3>
         <div class="entities">
           <div class="entity" id="e-tracker"><span class="id">device_tracker.furgone_12</span><span class="val" id="v-tracker"></span></div>
-          <div class="entity" id="e-moving"><span class="id">binary_sensor.furgone_12_moving</span><span class="val" id="v-moving"></span></div>
-          <div class="entity" id="e-alert"><span class="id">event.furgone_12_last_alert</span><span class="val" id="v-alert"></span></div>
-          <div class="entity" id="e-stream"><span class="id">binary_sensor.runic_io_alert_stream</span><span class="val" id="v-stream"></span></div>
+          <div class="entity" id="e-moving"><span class="id">binary_sensor.furgone_12_in_movimento</span><span class="val" id="v-moving"></span></div>
+          <div class="entity" id="e-alert"><span class="id">event.furgone_12_ultimo_avviso</span><span class="val" id="v-alert"></span></div>
+          <div class="entity" id="e-stream"><span class="id">binary_sensor.runic_io_stream_avvisi</span><span class="val" id="v-stream"></span></div>
         </div>
         <h3>Evento generato</h3>
         <pre id="evt"></pre>
@@ -316,7 +316,7 @@ const AUTOS = {
   "alert.poi_area": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: poi_enter\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
   "alert.theft": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "FURTO: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
 };
-const STREAM_AUTO = `Qualsiasi automazione avviata dal sensore Stream avvisi, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.runic_io_alert_stream\n    to: "off"\n    for: "00:10:00"\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "Lo stream avvisi di Runic non è connesso"`;
+const STREAM_AUTO = `Qualsiasi automazione avviata dal sensore Stream avvisi, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.runic_io_stream_avvisi\n    to: "off"\n    for: "00:10:00"\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "Lo stream avvisi di Runic non è connesso"`;
 const ALERT_NAMES = {
   movement: "Partito", poi_area: "Entrato o uscito da un punto di interesse", theft: "Allarme furto"
 };
@@ -423,18 +423,18 @@ actions:
     yaml: `alias: Camion 3 oltre i 120 km/h
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.camion_3_speed
+    entity_id: sensor.camion_3_velocita
     above: 120
 actions:
   - action: notify.mobile_app_my_phone
     data:
-      message: "Camion 3 sta andando a {{ states('sensor.camion_3_speed') }} km/h"` },
+      message: "Camion 3 sta andando a {{ states('sensor.camion_3_velocita') }} km/h"` },
   { title: "Parcheggiato da 30 minuti", kind: "poll",
     text: "Scatta quando il sensore di movimento è spento da 30 minuti di fila.",
     yaml: `alias: Furgone 12 parcheggiato da 30 minuti
 triggers:
   - trigger: state
-    entity_id: binary_sensor.furgone_12_moving
+    entity_id: binary_sensor.furgone_12_in_movimento
     to: "off"
     for: "00:30:00"
 actions:
@@ -510,7 +510,7 @@ function run(scn) {
     setSteps([...back, ["ok", "✓", "Runic ha accettato il token API."], ["ok", "✓", "La velocità è 0 km/h, quindi il sensore di movimento è spento, qualunque cosa dica lo stato di Runic."], ["idle", "–", "Nessun evento generato: il polling aggiorna solo le entità. Lo stesso polling parte anche subito dopo ogni avviso."]]);
     $("resp").textContent = "";
     $("evt").textContent = "(nessuno)";
-    $("auto").textContent = "Qualsiasi automazione avviata dalle entità stesse, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.furgone_12_moving\n    to: \"off\"";
+    $("auto").textContent = "Qualsiasi automazione avviata dalle entità stesse, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.furgone_12_in_movimento\n    to: \"off\"";
     renderEntities(false, changed, false, reauth);
     return;
   }

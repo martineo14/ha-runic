@@ -11,9 +11,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import RunicApiClient, RunicAuthError, RunicError
-from .const import DOMAIN, MOVING_MAX_FIX_AGE, MOVING_MIN_SPEED_KMH, SCAN_INTERVAL
+from .const import (
+    DOMAIN,
+    MOVING_MAX_FIX_AGE,
+    MOVING_MIN_SPEED_KMH,
+    SCAN_INTERVAL,
+    TODAY_SCAN_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,9 +47,12 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
     async def _async_update_data(self) -> dict[int, dict[str, Any]]:
         try:
             vehicles = await self.client.list_vehicles()
-            # The list has no speed; the details endpoint does.
+            # The list has no speed; the details endpoint does. The status adds km, engine hours, battery…
             details = await asyncio.gather(
                 *(self.client.get_vehicle(v["id"]) for v in vehicles), return_exceptions=True
+            )
+            statuses = await asyncio.gather(
+                *(self.client.get_status(v["id"]) for v in vehicles), return_exceptions=True
             )
         except RunicAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -50,13 +60,24 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             raise UpdateFailed(str(err)) from err
 
         result = {}
-        for summary, detail in zip(vehicles, details):
-            if isinstance(detail, RunicAuthError):
-                raise ConfigEntryAuthFailed(str(detail)) from detail
+        for summary, detail, status in zip(vehicles, details, statuses):
+            for answer in (detail, status):
+                if isinstance(answer, RunicAuthError):
+                    raise ConfigEntryAuthFailed(str(answer)) from answer
             if isinstance(detail, BaseException):
                 _LOGGER.debug("No details for vehicle %s: %s", summary["id"], detail)
                 detail = {}
-            result[summary["id"]] = {**summary, **detail}
+            vehicle = {**summary, **detail}
+            if isinstance(status, BaseException):
+                _LOGGER.debug("No status for vehicle %s: %s", summary["id"], status)
+            else:
+                vehicle["measures"] = {
+                    m["measure_id"]: m.get("value")
+                    for m in status.get("vehicle_status") or []
+                    if m.get("value") is not False  # composite measures carry no scalar value
+                }
+                vehicle["odometer_km"] = (status.get("odometer") or {}).get("km")
+            result[summary["id"]] = vehicle
         return result
 
     def apply_alert(self, alert: dict[str, Any]) -> None:
@@ -70,3 +91,64 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             self.async_set_updated_data({**self.data, vehicle["id"]: updated})
         # Debounced, so a burst of alerts costs one API round.
         self.hass.async_create_task(self.async_request_refresh())
+
+
+def _number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def summarize_tracks(tracks: dict[str, Any]) -> tuple[int, int]:
+    """Number of trips and seconds stopped in a /tracks answer (its shape varies, per Runic's docs)."""
+    moves = tracks.get("tracks")
+    trips = len(moves) if isinstance(moves, list) else (1 if moves else 0)
+    stopped = sum(
+        max(0, int(stop["to_time"]) - int(stop["from_time"]))
+        for stop in tracks.get("stops") or []
+        if stop.get("from_time") is not None and stop.get("to_time") is not None
+    )
+    return trips, stopped
+
+
+class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
+    """Today's distance, driving time, trips and stops for each vehicle."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, client: RunicApiClient, vehicles: RunicCoordinator) -> None:
+        super().__init__(
+            hass, _LOGGER, config_entry=entry, name=f"{DOMAIN}_today", update_interval=TODAY_SCAN_INTERVAL
+        )
+        self.client = client
+        self.vehicles = vehicles
+
+    async def _async_update_data(self) -> dict[int, dict[str, Any]]:
+        day = dt_util.now().date().isoformat()  # Runic reads dates in the account's timezone
+        ids = list(self.vehicles.data or {})
+        reports = await asyncio.gather(*(self.client.get_day_report(v, day) for v in ids), return_exceptions=True)
+        tracks = await asyncio.gather(*(self.client.get_day_tracks(v, day) for v in ids), return_exceptions=True)
+        result: dict[int, dict[str, Any]] = {}
+        for vid, report, track in zip(ids, reports, tracks):
+            for answer in (report, track):
+                if isinstance(answer, RunicAuthError):
+                    raise ConfigEntryAuthFailed(str(answer)) from answer
+            today: dict[str, Any] = {"date": day}
+            if isinstance(report, BaseException):
+                _LOGGER.debug("No report today for vehicle %s: %s", vid, report)
+            else:
+                report = report or {}  # no report yet: the vehicle hasn't moved today
+                today["distance_km"] = _number(report.get("distance")) or 0.0
+                today["driving_s"] = int(_number(report.get("driving_time")) or 0)
+                today["idle_s"] = int(_number(report.get("idle_time")) or 0)
+                today["max_speed"] = _number(report.get("max_speed"))
+            if isinstance(track, BaseException):
+                _LOGGER.debug("No tracks today for vehicle %s: %s", vid, track)
+            else:
+                try:
+                    today["trips"], today["stopped_s"] = summarize_tracks(track)
+                except (TypeError, ValueError, KeyError) as err:
+                    _LOGGER.debug("Unexpected tracks for vehicle %s: %s", vid, err)
+            result[vid] = today
+        if ids and all(isinstance(r, BaseException) for r in (*reports, *tracks)):
+            raise UpdateFailed("Runic returned no reports or tracks")
+        return result

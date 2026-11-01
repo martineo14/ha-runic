@@ -48,8 +48,18 @@ class FakeRunic:
         app = web.Application()
         app.router.add_get("/v1/vehicles", self._vehicles)
         app.router.add_get("/v1/vehicles/{vid}", self._vehicle)
+        app.router.add_get("/v1/vehicles/{vid}/status", self._json({"vehicle_status": [], "odometer": None}))
+        app.router.add_get("/v1/vehicles/{vid}/reports", self._json({"paths": []}))
+        app.router.add_get("/v1/vehicles/{vid}/tracks", self._json({"tracks": [], "stops": []}))
         app.router.add_get("/v1/alerts/stream", self._stream)
         return app
+
+    @staticmethod
+    def _json(body):
+        async def handler(request):
+            return web.json_response(body)
+
+        return handler
 
     async def _vehicles(self, request):
         self.vehicle_calls += 1

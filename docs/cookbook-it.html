@@ -752,14 +752,14 @@ actions:
           <h3>Gli avvisi non arrivano più: saperlo prima che serva</h3>
           <p class="story">Lo stream degli avvisi si ricollega da solo dopo un aggiornamento di Runic o un calo di rete. Se resta scollegato per 10 minuti, probabilmente è caduta la connessione internet o il token va rinnovato, e un allarme furto o incidente non ti arriverebbe. Così lo sai quando c'è ancora tempo per rimediare.</p>
           <dl class="meta">
-            <dt>Attivazione</dt><dd class="trig"><span class="chip">Stream avvisi spento per 10 minuti</span> <code>binary_sensor.runic_io_alert_stream</code></dd>
+            <dt>Attivazione</dt><dd class="trig"><span class="chip">Stream avvisi spento per 10 minuti</span> <code>binary_sensor.runic_io_stream_avvisi</code></dd>
             <dt>Ti servirà</dt><dd><ul><li>La versione 0.5.0 o successiva, con lo stream in tempo reale attivo</li><li>Un altro modo per essere avvisato se cade internet a casa, ad esempio i dati mobili del telefono</li></ul></dd>
           </dl>
         </div>
         <div class="code"><pre>alias: Runic · Stream avvisi scollegato
 triggers:
   - trigger: state
-    entity_id: binary_sensor.runic_io_alert_stream
+    entity_id: binary_sensor.runic_io_stream_avvisi
     to: "off"
     for: "00:10:00"
 actions:

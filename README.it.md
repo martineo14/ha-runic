@@ -47,6 +47,32 @@ come endpoint webhook e incolla il segreto di firma `whsec_…`. In questo caso 
 raggiungibile da internet in HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy) e l'URL non deve fare redirect.
 Un'integrazione configurata con webhook prima della 0.5.0 lo mantiene: attiva lo stream da **Runic.io → Configura**.
 
+## Pagina del veicolo
+
+Ogni veicolo è un dispositivo. La sua pagina in Impostazioni → Dispositivi e servizi mostra, in base a cosa invia il localizzatore:
+
+| Come nella pagina Runic | Entità |
+|---|---|
+| In marcia / parcheggiato, ultimo rilevamento | `sensor.<veicolo>_stato` (In marcia, Parcheggiato, Non raggiungibile), `sensor.<veicolo>_ultimo_rilevamento` |
+| Mappa e coordinate | `device_tracker.<veicolo>` |
+| Oggi: distanza, guida, viaggi, sosta | `sensor.<veicolo>_distanza_oggi`, `_tempo_di_guida_oggi`, `_viaggi_oggi`, `_tempo_in_sosta_oggi` (ogni 15 minuti, ripartono da zero ogni giorno) |
+| Chilometri, ore motore | `sensor.<veicolo>_contachilometri`, `sensor.<veicolo>_ore_motore` |
+| Scadenza tagliando | `sensor.<veicolo>_prossimo_tagliando`, impostato dall'avviso di manutenzione di Runic, con l'intervento come attributo |
+| Inoltre | velocità, in movimento, tensione batteria, livello carburante, ultimo avviso; segnale GSM (diagnostica, disattivato di default) |
+
+La pagina del dispositivo mostra anche la targa (come numero di serie), il firmware del localizzatore e un link
+**Visita** al portale Runic. I sensori compaiono solo per i valori che il veicolo invia: un'auto senza dati
+carburante CAN non ha il sensore del carburante. Le scadenze di assicurazione e revisione non sono nell'API di Runic,
+quindi non si possono mostrare.
+
+**Una plancia in stile Runic:** [`docs/vehicle-dashboard-it.yaml`](docs/vehicle-dashboard-it.yaml) ricrea la pagina
+con le schede integrate: nome con lo stato, una grande mappa con il percorso di oggi, i blocchi Oggi e Veicolo,
+il prossimo tagliando e gli ultimi avvisi. Crea una plancia, poi ⋮ → Modifica plancia → ⋮ → Editor di configurazione
+testuale, incolla il file e sostituisci `furgone_12` con il nome entità del tuo veicolo.
+
+Gli id delle entità seguono la lingua di Home Assistant al momento in cui aggiungi l'integrazione: in italiano sono
+`sensor.<veicolo>_velocita`, `_stato`, `_distanza_oggi`…; in inglese `_speed`, `_status`, `_distance_today`….
+
 ## Come funziona
 
 ```mermaid
