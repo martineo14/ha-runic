@@ -95,7 +95,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">Runic.io for Home Assistant · v0.3.1</span>
+    <span class="eyebrow">Runic.io for Home Assistant · v0.5.0</span>
     <h1>Ricettario automazioni Runic</h1>
     <p class="muted">Un'automazione concreta per ogni avviso Runic, con tre veicoli di esempio: Camion 3, Furgone 12 e Auto 2. Ognuna usa i dettagli che Runic invia con l'avviso, come la velocità, la tensione della batteria, il calo di carburante o i giorni che mancano al tagliando.</p>
   </header>
@@ -103,7 +103,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <section class="before" aria-labelledby="before">
     <h2 id="before">Prima di incollarne una</h2>
     <ul>
-      <li>Nel portale Runic, spunta il tipo di avviso sul tuo endpoint webhook e crea una <strong>regola di avviso</strong> corrispondente nell'app Runic. Un tipo di avviso senza regola non scatta mai.</li>
+      <li>Nel portale Runic, spunta il tipo di avviso sul tuo endpoint <strong>Real-time stream</strong> (o sul webhook, se ne usi uno) e crea una <strong>regola di avviso</strong> corrispondente nell'app Runic. Un tipo di avviso senza regola non scatta mai. Con lo stream, Home Assistant non ha bisogno di un indirizzo pubblico.</li>
       <li>Crea una nuova automazione, apri <strong>⋮ → Modifica in YAML</strong> e incolla. Torna all'editor visuale e scegli <strong>il tuo veicolo</strong> nell'attivazione: il <code>device_id</code> negli esempi è solo un segnaposto.</li>
       <li>Sostituisci <code>notify.mobile_app_my_phone</code>, luci, altoparlanti e telecamere con i tuoi. La voce “Ti servirà” di ogni ricetta dice cosa ti occorre.</li>
       <li>I link alla mappa aprono Google Maps sulla posizione dell'avviso, direttamente dalla notifica dell'app Home Assistant (companion app).</li>
@@ -135,6 +135,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li><a href="#low-battery">Batteria del veicolo scarica</a></li>
         <li><a href="#low-battery-internal">Batteria del localizzatore scarica</a></li>
         <li><a href="#offline">Non raggiungibile</a></li>
+        <li><a href="#stream-down">Stream avvisi scollegato</a></li>
       </ul></div>
       <div><span class="eyebrow">Carburante e manutenzione</span><ul>
         <li><a href="#fuel">Variazione del carburante (CAN)</a></li>
@@ -745,6 +746,32 @@ actions:
         [Ultima posizione](https://www.google.com/maps?q={{ trigger.event.data.position.lat }},{{ trigger.event.data.position.lon }})</pre><button type="button" id="c-offline">Copia</button></div>
       </article>
 
+      <article class="recipe" id="stream-down" data-group="device">
+        <div class="about">
+          <span class="eyebrow">Veicolo e dispositivo</span>
+          <h3>Gli avvisi non arrivano più: saperlo prima che serva</h3>
+          <p class="story">Lo stream degli avvisi si ricollega da solo dopo un aggiornamento di Runic o un calo di rete. Se resta scollegato per 10 minuti, probabilmente è caduta la connessione internet o il token va rinnovato, e un allarme furto o incidente non ti arriverebbe. Così lo sai quando c'è ancora tempo per rimediare.</p>
+          <dl class="meta">
+            <dt>Attivazione</dt><dd class="trig"><span class="chip">Stream avvisi spento per 10 minuti</span> <code>binary_sensor.runic_io_alert_stream</code></dd>
+            <dt>Ti servirà</dt><dd><ul><li>La versione 0.5.0 o successiva, con lo stream in tempo reale attivo</li><li>Un altro modo per essere avvisato se cade internet a casa, ad esempio i dati mobili del telefono</li></ul></dd>
+          </dl>
+        </div>
+        <div class="code"><pre>alias: Runic · Stream avvisi scollegato
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.runic_io_alert_stream
+    to: "off"
+    for: "00:10:00"
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "Gli avvisi Runic non arrivano"
+      message: >
+        Lo stream degli avvisi è scollegato da 10 minuti.
+        Controlla la connessione internet di Home Assistant, oppure
+        Impostazioni → Dispositivi e servizi se Runic ha chiesto un nuovo token.</pre><button type="button" id="c-stream-down">Copia</button></div>
+      </article>
+
       <article class="recipe critical" id="fuel" data-group="fuel">
         <div class="about">
           <span class="eyebrow">Carburante e manutenzione</span>
@@ -876,7 +903,7 @@ actions:
     </div>
   </section>
 
-  <footer>Campi degli avvisi tratti dal riferimento webhook della Runic Vehicle Monitoring API 1.7.0. Integrazione: <code>github.com/martineo14/ha-runic</code>. I nomi di entità e servizi negli esempi sono indicativi: usa quelli del tuo Home Assistant.</footer>
+  <footer>Campi degli avvisi tratti dal riferimento della Runic Vehicle Monitoring API 1.8.0 (Webhook e Alert stream trasportano lo stesso avviso). Integrazione: <code>github.com/martineo14/ha-runic</code>. I nomi di entità e servizi negli esempi sono indicativi: usa quelli del tuo Home Assistant.</footer>
 </main>
 
 <script>

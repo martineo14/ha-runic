@@ -95,7 +95,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">Runic.io for Home Assistant · v0.3.1</span>
+    <span class="eyebrow">Runic.io for Home Assistant · v0.5.0</span>
     <h1>Runic automation cookbook</h1>
     <p class="muted">One real-life automation for every Runic alert, using three example vehicles: Truck 3, Van 12 and Car 2. Each one reads the details Runic sends with that alert, such as the speed, the battery voltage, the fuel drop or the days left before a service.</p>
   </header>
@@ -103,7 +103,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <section class="before" aria-labelledby="before">
     <h2 id="before">Before you paste one</h2>
     <ul>
-      <li>In the Runic portal, tick the alert type on your webhook endpoint, and create an <strong>alert rule</strong> for it in the Runic app. An alert type with no rule never fires.</li>
+      <li>In the Runic portal, tick the alert type on your <strong>Real-time stream</strong> endpoint (or your webhook, if you use one), and create an <strong>alert rule</strong> for it in the Runic app. An alert type with no rule never fires. With the stream, Home Assistant needs no public address.</li>
       <li>Create a new automation, open <strong>⋮ → Edit in YAML</strong> and paste. Switch back to the visual editor and pick <strong>your vehicle</strong> in the trigger: the <code>device_id</code> in the examples is a placeholder.</li>
       <li>Replace <code>notify.mobile_app_my_phone</code>, lights, speakers and cameras with your own. The “You'll need” list on each recipe says what to have.</li>
       <li>The map links open Google Maps on the alert's position, from the companion app notification.</li>
@@ -135,6 +135,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li><a href="#low-battery">Low vehicle battery</a></li>
         <li><a href="#low-battery-internal">Low tracker battery</a></li>
         <li><a href="#offline">Went offline</a></li>
+        <li><a href="#stream-down">Alert stream down</a></li>
       </ul></div>
       <div><span class="eyebrow">Fuel &amp; maintenance</span><ul>
         <li><a href="#fuel">Fuel level change (CAN)</a></li>
@@ -745,6 +746,32 @@ actions:
         [Last position](https://www.google.com/maps?q={{ trigger.event.data.position.lat }},{{ trigger.event.data.position.lon }})</pre><button type="button" id="c-offline">Copy</button></div>
       </article>
 
+      <article class="recipe" id="stream-down" data-group="device">
+        <div class="about">
+          <span class="eyebrow">Vehicle &amp; device</span>
+          <h3>Alerts stopped arriving: know before it matters</h3>
+          <p class="story">The alert stream reconnects on its own after a Runic deploy or a network blip. If it stays down for 10 minutes, your internet is probably out or the token needs renewing, and a theft or accident alert would not reach you. This tells you while there's still time to fix it.</p>
+          <dl class="meta">
+            <dt>Trigger</dt><dd class="trig"><span class="chip">Alert stream off for 10 minutes</span> <code>binary_sensor.runic_io_alert_stream</code></dd>
+            <dt>You'll need</dt><dd><ul><li>Version 0.5.0 or later, with the real-time stream on</li><li>A second way to be told if your home internet is down, such as a phone's mobile data</li></ul></dd>
+          </dl>
+        </div>
+        <div class="code"><pre>alias: Runic · Alert stream down
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.runic_io_alert_stream
+    to: "off"
+    for: "00:10:00"
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: "Runic alerts are not arriving"
+      message: >
+        The alert stream has been disconnected for 10 minutes.
+        Check Home Assistant's internet connection, or Settings →
+        Devices &amp; services if Runic asked for a new token.</pre><button type="button" id="c-stream-down">Copy</button></div>
+      </article>
+
       <article class="recipe critical" id="fuel" data-group="fuel">
         <div class="about">
           <span class="eyebrow">Fuel &amp; maintenance</span>
@@ -876,7 +903,7 @@ actions:
     </div>
   </section>
 
-  <footer>Alert fields from the Runic Vehicle Monitoring API 1.7.0 webhook reference. Integration: <code>github.com/martineo14/ha-runic</code>. Entity and service names in the examples are illustrations: use the ones from your Home Assistant.</footer>
+  <footer>Alert fields from the Runic Vehicle Monitoring API 1.8.0 reference (Webhooks and Alert stream carry the same alert). Integration: <code>github.com/martineo14/ha-runic</code>. Entity and service names in the examples are illustrations: use the ones from your Home Assistant.</footer>
 </main>
 
 <script>

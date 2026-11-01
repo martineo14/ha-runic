@@ -47,6 +47,41 @@ come endpoint webhook e incolla il segreto di firma `whsec_…`. In questo caso 
 raggiungibile da internet in HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy) e l'URL non deve fare redirect.
 Un'integrazione configurata con webhook prima della 0.5.0 lo mantiene: attiva lo stream da **Runic.io → Configura**.
 
+## Come funziona
+
+```mermaid
+flowchart LR
+    T[Localizzatore GPS Runic] -- 4G --> R[Cloud Runic]
+    HA[Home Assistant<br/>integrazione Runic.io] -- "WebSocket in uscita<br/>wss://api.runic.io/v1/alerts/stream" --> R
+    R -. "avvisi, in pochi secondi" .-> HA
+    HA -- "REST, ogni 5 min<br/>e dopo ogni avviso" --> R
+    HA --> A[Attivazioni · runic_event<br/>Ultimo avviso · mappa · velocità · in movimento]
+```
+
+Home Assistant apre solo connessioni **in uscita**: funziona dietro qualsiasi router o connessione 4G,
+senza esporre nulla su internet.
+
+| Connessione | Cosa trasporta | Quando |
+|---|---|---|
+| **Stream avvisi** (WebSocket, token Bearer) | Tutti i tipi di avviso selezionati sull'endpoint stream | Pochi secondi dopo che Runic li genera |
+| **API REST** (`GET /vehicles`, `GET /vehicles/{id}`) | Posizione, velocità e stato di ogni veicolo | Ogni 5 minuti e subito dopo ogni avviso |
+| **Webhook** (facoltativo, firmato) | Gli stessi avvisi, se preferisci che Runic chiami Home Assistant | Richiede Home Assistant raggiungibile in HTTPS pubblico |
+
+**Affidabilità**
+
+- L'integrazione ricorda l'ultimo avviso elaborato (il suo `seq`), anche dopo un riavvio. Dopo una
+  disconnessione riprende da lì; Runic conserva 72 ore di avvisi. Dopo un'interruzione più lunga aggiorna
+  invece i veicoli tramite l'API REST.
+- La consegna è "almeno una volta": gli avvisi ripetuti vengono scartati in base al loro `id`, quindi
+  stream e webhook possono funzionare anche insieme senza attivazioni doppie.
+- Le connessioni cadute (aggiornamenti di Runic, cambi di rete) si ricollegano da sole: dopo 1 s, poi il
+  doppio ogni volta fino a 5 minuti, con un ritardo casuale. Invia il `ping` richiesto da Runic ogni 30 s.
+- Se Runic revoca o fa scadere il token, lo stream si ferma e la scheda Runic.io in
+  Impostazioni → Dispositivi e servizi chiede un nuovo token.
+
+**Privacy:** il token API è salvato nella configurazione di Home Assistant come le credenziali di qualsiasi
+altra integrazione, e viene inviato solo ad `api.runic.io`. Avvisi e posizioni restano nel tuo Home Assistant.
+
 ## Automazioni
 
 ### Dall'editor delle automazioni

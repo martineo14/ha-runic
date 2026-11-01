@@ -47,6 +47,41 @@ internet over HTTPS (Nabu Casa, Cloudflare Tunnel, reverse proxy), and the URL m
 An integration set up with a webhook before 0.5.0 keeps it: turn on the stream under
 **Runic.io → Configure**.
 
+## How it works
+
+```mermaid
+flowchart LR
+    T[Runic GPS tracker] -- 4G --> R[Runic cloud]
+    HA[Home Assistant<br/>Runic.io integration] -- "outgoing WebSocket<br/>wss://api.runic.io/v1/alerts/stream" --> R
+    R -. "alerts, within seconds" .-> HA
+    HA -- "REST, every 5 min<br/>and after each alert" --> R
+    HA --> A[Device triggers · runic_event<br/>Last alert · map · speed · moving]
+```
+
+Home Assistant only makes **outgoing** connections, so it works behind any router or a 4G connection,
+with nothing exposed to the internet.
+
+| Connection | What it carries | When |
+|---|---|---|
+| **Alert stream** (WebSocket, Bearer token) | Every alert type ticked on the stream endpoint | Seconds after Runic raises it |
+| **REST API** (`GET /vehicles`, `GET /vehicles/{id}`) | Position, speed, status of each vehicle | Every 5 minutes, and right after each alert |
+| **Webhook** (optional, signed) | The same alerts, if you prefer Runic to call Home Assistant | Needs Home Assistant reachable over public HTTPS |
+
+**Reliability**
+
+- The integration remembers the last alert it processed (its `seq`), also across restarts. After a
+  disconnect it resumes from there; Runic keeps 72 hours of alerts. After a longer outage it refreshes
+  the vehicles through the REST API instead.
+- Delivery is at least once: repeated alerts are dropped by their `id`, so the stream and a webhook can
+  even run together without double triggers.
+- Dropped connections (Runic deploys, network changes) reconnect on their own: after 1 s, doubling up to
+  5 minutes, with random jitter. It sends the `ping` Runic expects every 30 s.
+- If Runic revokes or expires the token, the stream stops and the Runic.io card under
+  Settings → Devices & services asks for a new token.
+
+**Privacy:** the API token is stored in Home Assistant's configuration like any other integration's
+credentials, and is only sent to `api.runic.io`. Alerts and positions stay in your Home Assistant.
+
 ## Automations
 
 ### From the automation editor
