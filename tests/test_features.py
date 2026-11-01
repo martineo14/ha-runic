@@ -208,3 +208,39 @@ async def test_zone_sync_end_to_end(hass: HomeAssistant, aioclient_mock):
     calls_before = len(aioclient_mock.mock_calls)
     await hass.services.async_call(DOMAIN, "sync_zones", blocking=True)
     assert len(aioclient_mock.mock_calls) > calls_before
+
+
+async def test_zone_sync_with_list_shaped_rule_settings(hass: HomeAssistant):
+    """Runic can list a rule's settings as a list; the sync must still run (v0.7.0 crashed here)."""
+    hass.states.async_set("zone.home", "0", {"latitude": 45.1, "longitude": 12.1, "radius": 100, "friendly_name": "Home"})
+    account = FakeRunicAccount(
+        pois=[{"poi_id": 3, "name": "Customer", "latitude": 45.2, "longitude": 12.2, "radius_m": 150, "address": "Via Roma 1"}],
+        rules=[
+            {"alert_id": 12, "type": "poi_area", "vehicle_id": 0,
+             "settings": [{"key": "poi_id", "value": "3"}, {"key": "direction", "value": "in"}]},
+            {"alert_id": 13, "type": "speed", "vehicle_id": 0, "settings": [{"key": "limit", "value": "90"}]},
+        ],
+    )
+
+    async def on_done():
+        return None
+
+    counts = await ZoneSync(hass, account, None, on_done).async_sync()
+    assert counts["created"] == 1
+    assert ("create_poi", "Home") in account.calls
+    assert 12 in account.rules  # the app-made POI's rule is untouched
+
+    account.calls.clear()
+    counts = await ZoneSync(hass, account, None, on_done).async_sync()
+    assert not any(counts.values()) and account.calls == []
+
+
+def test_summarize_tracks_accepts_lists():
+    from custom_components.runic.coordinator import summarize_tracks
+
+    assert summarize_tracks({"tracks": [{}, {}], "stops": [{"from_time": 0, "to_time": 60}]}) == (2, 60)
+    assert summarize_tracks([]) == (0, 0)
+    assert summarize_tracks([{"tracks": [{}, {}, {}], "stops": []}]) == (3, 0)
+    assert summarize_tracks(
+        [{"from_time": 0, "to_time": 10}, {"type": "stop", "from_time": 10, "to_time": 70}, {"from_time": 70}]
+    ) == (2, 60)
