@@ -130,9 +130,9 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">martineo14/ha-runic · v0.3.0</span>
+    <span class="eyebrow">martineo14/ha-runic · v0.5.0</span>
     <h1>What the Runic.io integration does</h1>
-    <p class="muted">It connects your Runic GPS trackers to Home Assistant in two ways: it reads where each vehicle is, and it passes Runic alerts (started moving, entered a zone, theft…) to your automations within seconds.</p>
+    <p class="muted">It connects your Runic GPS trackers to Home Assistant in two ways: it reads where each vehicle is, and it passes Runic alerts (started moving, entered a zone, theft…) to your automations within seconds. Alerts arrive over a connection Home Assistant opens itself, so nothing on the internet needs to reach your Home Assistant.</p>
   </header>
 
   <section aria-labelledby="flow">
@@ -144,17 +144,18 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <ul>
           <li>The vehicle's position and moving / stopped state are kept by Runic.</li>
           <li>An <strong>alert rule</strong> you created in the Runic app fires, for example “vehicle started moving”.</li>
-          <li>Runic sends that alert to your Home Assistant, signed with your <code>whsec_…</code> secret.</li>
+          <li>Runic sends that alert over the real-time stream your Home Assistant opened. No URL or signing secret is involved.</li>
         </ul>
       </div>
       <div class="lane">
         <span class="eyebrow">The integration</span>
         <h3>Checks it, then announces it</h3>
         <ul>
-          <li>Rejects anything without a valid signature, or older than 5 minutes.</li>
-          <li>Ignores repeats of an alert it already handled.</li>
+          <li>Drops repeats of an alert it already handled.</li>
+          <li>Saves the alert's sequence number (<code>seq</code>), so after a restart it carries on where it stopped.</li>
           <li>Fires the vehicle's trigger for that alert type, for example “Theft alarm”.</li>
           <li>Moves the vehicle on the map and records the alert on its “Last alert” entity.</li>
+          <li>If the connection drops, it reconnects and resumes on its own.</li>
         </ul>
       </div>
       <div class="lane">
@@ -173,20 +174,22 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <h2 id="paths">Two ways data comes in</h2>
     <div class="paths">
       <div class="path">
-        <span class="eyebrow">Every 5 minutes</span>
+        <span class="eyebrow">Every 5 minutes, and after each alert</span>
         <h3>Home Assistant asks Runic</h3>
         <p>It calls <code>GET /vehicles</code> and <code>GET /vehicles/{id}</code> with your API token. For each vehicle it keeps three entities up to date:</p>
         <p><code>device_tracker.&lt;vehicle&gt;</code>: latitude and longitude, so it appears on the map.<br>
         <code>sensor.&lt;vehicle&gt;_speed</code>: GPS speed of the last fix, in km/h.<br>
         <code>binary_sensor.&lt;vehicle&gt;_moving</code>: on when the last fix is under 15 minutes old and at 5 km/h or more.</p>
         <p class="note">Runic's own <code>RUN</code> status only means the tracker is active (heartbeats, ignition), so it isn't used for “moving”.</p>
-        <p class="note">Works on your local network today, with no internet access to Home Assistant needed.</p>
+        <p class="note">Home Assistant only makes outgoing requests, so nothing on the internet needs to reach it.</p>
       </div>
       <div class="path">
         <span class="eyebrow">Seconds after an alert</span>
-        <h3>Runic tells Home Assistant</h3>
-        <p>Runic sends each alert to your webhook URL. This is what triggers automations. It covers 20 alert types, including <code>alert.movement</code>, <code>alert.poi_area</code> (entered or left a zone), <code>alert.theft</code>, <code>alert.tow</code>, <code>alert.speed_limit</code> and <code>alert.low_battery</code>.</p>
-        <p class="note">Needs Home Assistant reachable from the internet over HTTPS (Nabu Casa, a Cloudflare tunnel…), and an alert rule in the Runic app for each type.</p>
+        <h3>Runic streams alerts to Home Assistant</h3>
+        <p>Home Assistant opens an outgoing connection to <code>wss://api.runic.io/v1/alerts/stream</code> with your API token, and Runic sends each alert down it. This is what triggers automations. It covers 20 alert types, including <code>alert.movement</code>, <code>alert.poi_area</code> (entered or left a zone), <code>alert.theft</code>, <code>alert.tow</code>, <code>alert.speed_limit</code> and <code>alert.low_battery</code>.</p>
+        <p class="note">Needs only your API token, a “Real-time stream” endpoint in the Runic developer portal with the alert types ticked, and an alert rule in the Runic app for each type. No public URL, port forwarding, Nabu Casa or tunnel: it works behind any router, even on 4G. A diagnostic “Alert stream” sensor on the Runic.io device is on while the stream is connected.</p>
+        <p class="note">Set up: in the developer portal, <span class="kbd">Add endpoint</span> → <span class="kbd">Real-time stream</span> (one per company, no URL, no secret). In Home Assistant, add Runic.io, paste the API token and choose <em>Real-time stream (recommended)</em>. <span class="kbd">Send test event</span> on the endpoint sends <code>alert.test</code> to every connected client.</p>
+        <p class="note">Webhooks still work as an alternative. They are signed, and need Home Assistant reachable over public HTTPS with no redirects. Setups that already use a webhook keep it, and can turn the stream on under <span class="kbd">Runic.io</span> → <span class="kbd">Configure</span>. Both can run together: alerts are deduplicated on their id.</p>
       </div>
     </div>
   </section>
@@ -198,14 +201,14 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <table class="choose">
         <thead><tr><th>Trigger</th><th>Fires when</th><th>Needs</th><th>Good for</th></tr></thead>
         <tbody>
-          <tr><td><strong>Runic alert</strong><br><span class="muted">Device trigger, e.g. “Theft alarm”</span></td><td>Seconds after Runic raises the alert</td><td><span class="chip chip-hook">Webhook</span></td><td>Theft, tow, panic button, accident, geofences, speeding, battery, offline</td></tr>
+          <tr><td><strong>Runic alert</strong><br><span class="muted">Device trigger, e.g. “Theft alarm”</span></td><td>Seconds after Runic raises the alert</td><td><span class="chip chip-hook">Runic alert</span></td><td>Theft, tow, panic button, accident, geofences, speeding, battery, offline</td></tr>
           <tr><td><strong>Zone</strong><br><span class="muted"><code>device_tracker.&lt;vehicle&gt;</code></span></td><td>The vehicle enters or leaves a Home Assistant zone</td><td><span class="chip chip-poll">Polling only</span></td><td>Arriving home, leaving work. Can take up to 5 minutes</td></tr>
           <tr><td><strong>Moving</strong><br><span class="muted"><code>binary_sensor.&lt;vehicle&gt;_moving</code></span></td><td>The sensor turns on or off, optionally for a set time</td><td><span class="chip chip-poll">Polling only</span></td><td>Trip started, parked for 30 minutes</td></tr>
           <tr><td><strong>Speed</strong><br><span class="muted"><code>sensor.&lt;vehicle&gt;_speed</code></span></td><td>The speed goes above or below a value</td><td><span class="chip chip-poll">Polling only</span></td><td>Your own speed thresholds</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note"><span class="chip chip-hook">Webhook</span> triggers need Home Assistant reachable from the internet and an alert rule in the Runic app. <span class="chip chip-poll">Polling only</span> triggers work on your local network with nothing else to set up.</p>
+    <p class="note"><span class="chip chip-hook">Runic alert</span> triggers need a stream (or webhook) endpoint in the Runic developer portal with that alert type ticked, plus an alert rule in the Runic app. <span class="chip chip-poll">Polling only</span> triggers work with nothing else to set up.</p>
 
     <h3>Add a Runic alert trigger in the editor</h3>
     <ol class="steps-ui">
@@ -233,24 +236,26 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <li><code>{{ trigger.event.data.message }}</code>: Runic's text, in your account's language</li>
       <li><code>{{ trigger.event.data.position.lat }}</code>, <code>{{ trigger.event.data.position.lon }}</code></li>
       <li><code>{{ trigger.event.data.data.poi_id }}</code>, <code>{{ trigger.event.data.direction }}</code>: for geofences</li>
+      <li><code>{{ trigger.event.data.source }}</code>: <code>stream</code> or <code>webhook</code>, how the alert arrived</li>
     </ul>
   </section>
 
   <section aria-labelledby="sim">
     <h2 id="sim">Try it: send an alert</h2>
-    <p class="muted">An example vehicle, “Van 12”, using the sample data from Runic's API docs. Pick what Runic sends and see what the integration does with it.</p>
+    <p class="muted">An example vehicle, “Van 12”, using the sample data from Runic's API docs. Pick what Runic sends over the stream and see what the integration does with it.</p>
     <div class="controls" role="group" aria-label="Choose what Runic sends">
       <button id="b-movement" data-scn="movement" aria-pressed="true">Vehicle starts moving</button>
       <button id="b-poi" data-scn="poi">Enters a zone</button>
       <button id="b-theft" data-scn="theft">Theft alarm</button>
       <button id="b-dup" data-scn="dup">Same alert again (retry)</button>
-      <button id="b-bad" data-scn="bad">Forged request</button>
+      <button id="b-drop" data-scn="drop">Connection drops</button>
+      <button id="b-revoke" data-scn="revoke">Token revoked</button>
       <button id="b-poll" data-scn="poll">5-minute poll: stopped</button>
       <button id="b-reset" class="ghost">Reset</button>
     </div>
     <div class="sim">
       <div class="panel">
-        <span class="eyebrow" id="req-label">Runic sends</span>
+        <span class="eyebrow" id="req-label">Runic sends over the stream</span>
         <pre id="req" aria-live="polite"></pre>
         <h3>The integration</h3>
         <ol class="steps" id="steps"></ol>
@@ -263,6 +268,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
           <div class="entity" id="e-tracker"><span class="id">device_tracker.van_12</span><span class="val" id="v-tracker"></span></div>
           <div class="entity" id="e-moving"><span class="id">binary_sensor.van_12_moving</span><span class="val" id="v-moving"></span></div>
           <div class="entity" id="e-alert"><span class="id">event.van_12_last_alert</span><span class="val" id="v-alert"></span></div>
+          <div class="entity" id="e-stream"><span class="id">binary_sensor.runic_io_alert_stream</span><span class="val" id="v-stream"></span></div>
         </div>
         <h3>Event fired</h3>
         <pre id="evt"></pre>
@@ -273,22 +279,25 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </section>
 
   <section aria-labelledby="limits">
-    <h2 id="limits">What version 0.3.0 doesn't do yet</h2>
+    <h2 id="limits">What version 0.5.0 doesn't do yet</h2>
     <ul class="limits">
       <li>The “moving” sensor only switches off at the next 5-minute poll. Runic has no “stopped” alert.</li>
       <li>No sensors yet for battery voltage, fuel or odometer, though Runic's API has them.</li>
-      <li>The setup asks for a webhook signing secret, even if you only want location polling for now.</li>
       <li>Vehicles added to your Runic account later only appear after you reload the integration.</li>
+      <li>If Home Assistant is disconnected from the stream for more than 72 hours, the alerts from that gap are lost: Runic keeps only 72 hours. The integration refreshes the vehicles over REST instead.</li>
     </ul>
   </section>
 
-  <footer>Source: <span class="mono">github.com/martineo14/ha-runic</span>. Data formats from the Runic Vehicle Monitoring API 1.7.0 docs at developers.runic.io.</footer>
+  <footer>Source: <span class="mono">github.com/martineo14/ha-runic</span>. Data formats from the Runic Vehicle Monitoring API 1.8.0 docs (Alert stream) at developers.runic.io.</footer>
 </main>
 
 <script>
-const START = { lat: 45.0, lon: 12.0, status: "STOP" };
+const START = { lat: 45.0, lon: 12.0, status: "STOP", stream: "on" };
+const START_SEQ = 1042;
 let state = { ...START };
 const seen = new Set();
+const seqOf = {};
+let savedSeq = START_SEQ;
 
 const base = (id, type, data, message, level, pos) => ({
   id, type, created_at: "2026-09-28T15:21:21Z", api_version: "2026-10-01",
@@ -307,6 +316,7 @@ const AUTOS = {
   "alert.poi_area": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: poi_enter\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
   "alert.theft": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "THEFT: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
 };
+const STREAM_AUTO = `Anything triggered by the Alert stream sensor, for example:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.runic_io_alert_stream\n    to: "off"\n    for: "00:10:00"\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "Runic alert stream is down"`;
 const ALERT_NAMES = {
   movement: "Started moving", poi_area: "Entered or left a point of interest", theft: "Theft alarm"
 };
@@ -397,7 +407,7 @@ actions:
       title: "{{ trigger.event.data.vehicle_name }}"
       message: "{{ trigger.event.data.message }}"` },
   { title: "Vehicle arrives home", kind: "poll",
-    text: "Uses a Home Assistant zone, so it works without the webhook. It can take up to 5 minutes, the polling interval.",
+    text: "Uses a Home Assistant zone, so it works without any Runic alert set up. It can take up to 5 minutes, the polling interval.",
     yaml: `alias: Truck 3 is home
 triggers:
   - trigger: zone
@@ -438,7 +448,7 @@ function renderRecipes() {
   document.getElementById("recipes").innerHTML = RECIPES.map((r, i) => `
     <article class="recipe">
       <div class="about">
-        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Webhook</span>' : '<span class="chip chip-poll">Polling only</span>'}</span>
+        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Runic alert</span>' : '<span class="chip chip-poll">Polling only</span>'}</span>
         <h3>${r.title}</h3>
         <p class="note">${r.text}</p>
       </div>
@@ -459,17 +469,20 @@ let lastAlert = null;
 
 const $ = (id) => document.getElementById(id);
 const fmt = (o) => JSON.stringify(o, null, 2);
-const headers = (id, sig) => `POST /api/webhook/<your id>\nwebhook-id: ${id}\nwebhook-timestamp: 1790608881\nwebhook-signature: ${sig}\n\n`;
+const line = (o) => JSON.stringify(o).replace(/,"/g, ', "').replace(/":/g, '": ');
+const hello = (last) => line({ type: "hello", protocol: 1, api_version: "2026-10-01", last_seq: last, oldest_seq: 880, retention_hours: 72 });
+const ok = (strong, rest) => `<span style="color:var(--ok)">${strong}</span> <span class="muted">· ${rest}</span>`;
 
 function setSteps(list) {
   $("steps").innerHTML = list.map(([cls, mark, text]) =>
     `<li class="s-${cls}"><span class="mark">${mark}</span><span>${text}</span></li>`).join("");
 }
-function renderEntities(changedTracker, changedMoving, changedAlert = false) {
+function renderEntities(changedTracker, changedMoving, changedAlert = false, changedStream = false) {
   $("v-tracker").textContent = `${state.lat.toFixed(6)}, ${state.lon.toFixed(6)}`;
   $("v-moving").textContent = state.status === "RUN" ? "on (moving)" : "off (stopped)";
   $("v-alert").textContent = state.alert ? ALERT_NAMES[state.alert] : "unknown (no alert yet)";
-  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert]]) {
+  $("v-stream").textContent = state.stream === "on" ? "on (connected)" : "off (disconnected)";
+  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert], ["e-stream", changedStream]]) {
     $(el).classList.remove("changed");
     if (on) { void $(el).offsetWidth; $(el).classList.add("changed"); }
   }
@@ -477,68 +490,100 @@ function renderEntities(changedTracker, changedMoving, changedAlert = false) {
 function eventData(a) {
   const alert = a.type.replace("alert.", "");
   return { id: a.id, type: a.type, alert, device_id: "a1b2c3d4e5f6", direction: a.data.direction ?? null, level: a.level, created_at: a.created_at, vehicle_id: a.vehicle.id,
-    vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message };
+    vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message, source: "stream" };
 }
 
 function run(scn) {
   document.querySelectorAll("[data-scn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scn === scn)));
-  $("req-label").textContent = scn === "poll" ? "Home Assistant asks Runic" : "Runic sends";
+  $("req-label").textContent = scn === "poll" ? "Home Assistant asks Runic" : (scn === "drop" || scn === "revoke") ? "On the stream (← Runic, → Home Assistant)" : "Runic sends over the stream";
+
+  // After "Token revoked", any other scenario assumes you entered a new token.
+  const reauth = state.stream === "off" && scn !== "revoke";
+  const back = reauth ? [["ok", "✓", "You entered a new API token, so the stream connected again and resumed."]] : [];
+  if (reauth) state.stream = "on";
 
   if (scn === "poll") {
     const v = { id: 58806, name: "Van 12", plate: "AB123CD", latitude: state.lat, longitude: state.lon, speed: 0, timestamp: 1790609100, status: "RUN" };
     $("req").textContent = `GET https://api.runic.io/v1/vehicles/58806\nAuthorization: Bearer <your token>\n\n← ${fmt({ vehicle: v })}\n\nRunic still says RUN: the parked tracker is sending heartbeats.`;
     const changed = state.status !== "STOP";
     state.status = "STOP";
-    setSteps([["ok", "✓", "Runic accepted the API token."], ["ok", "✓", "Speed is 0 km/h, so the moving sensor is off, whatever Runic's status says."], ["idle", "–", "No event is fired: polling only updates entities."]]);
+    setSteps([...back, ["ok", "✓", "Runic accepted the API token."], ["ok", "✓", "Speed is 0 km/h, so the moving sensor is off, whatever Runic's status says."], ["idle", "–", "No event is fired: polling only updates entities. The same poll also runs right after each alert."]]);
     $("resp").textContent = "";
     $("evt").textContent = "(none)";
     $("auto").textContent = "Anything triggered by the entities themselves, for example:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.van_12_moving\n    to: \"off\"";
-    renderEntities(false, changed);
+    renderEntities(false, changed, false, reauth);
     return;
   }
 
-  if (scn === "bad") {
-    const a = ALERTS.movement;
-    $("req").textContent = headers("evt_99999999", "v1,Zm9yZ2VkLXNpZ25hdHVyZQ==") + fmt({ ...a, id: "evt_99999999", type: "alert.theft" });
-    setSteps([["bad", "✗", "Signature doesn't match your <code>whsec_…</code> secret. Request rejected."], ["idle", "–", "Duplicate check: not reached."], ["idle", "–", "Nothing fired, nothing changed."]]);
-    $("resp").innerHTML = `<span style="color:var(--bad)">← 401 Unauthorized</span> <span class="muted">· a warning is written to the Home Assistant log</span>`;
+  if (scn === "drop") {
+    $("req").textContent = `✕ closed (code 1012: Runic is deploying)\n\n… 1 s later, Home Assistant connects again:\nGET wss://api.runic.io/v1/alerts/stream\nAuthorization: Bearer <your token>\n\n← ${hello(savedSeq)}\n→ ${line({ type: "resume", after: savedSeq })}\n→ ping   ← pong   (every 30 s)`;
+    setSteps([...back,
+      ["bad", "✗", "Connection closed: Runic is deploying a new version."],
+      ["ok", "✓", "Reconnected after 1 s. If it keeps failing, the wait doubles up to 5 minutes, plus a little random jitter."],
+      ["ok", "✓", `Got <code>hello</code> (last_seq ${savedSeq}, Runic keeps 72 hours).`],
+      ["ok", "✓", `Sent <code>resume</code> after ${savedSeq}, the last seq it saved.`],
+      ["ok", "✓", "Nothing missed: any alert sent while it was away would arrive now, in order."],
+      ["ok", "✓", "The Alert stream sensor went off, then on again."]]);
+    $("resp").innerHTML = ok(`resumed after seq ${savedSeq}`, "connected again, no alerts lost");
+    $("evt").textContent = "(none: nothing was missed)";
+    $("auto").textContent = STREAM_AUTO;
+    state.stream = "on";
+    renderEntities(false, false, false, true);
+    return;
+  }
+
+  if (scn === "revoke") {
+    $("req").textContent = `✕ closed (code 4401: token revoked or expired)\n\nA new connection with the same token would be\nrefused with HTTP 401, so the integration doesn't retry.`;
+    setSteps([
+      ["bad", "✗", "Runic closed the stream with code 4401: the API token was revoked or has expired."],
+      ["idle", "–", "The stream stops. Reconnecting with the same token can't work."],
+      ["skip", "!", "Home Assistant shows “Re-authenticate: enter a new Runic API token” under <span class=\"kbd\">Settings</span> → <span class=\"kbd\">Devices &amp; services</span>."],
+      ["ok", "✓", "Once you enter a new token, the stream resumes from the last saved seq."]]);
+    $("resp").innerHTML = `<span style="color:var(--bad)">close 4401</span> <span class="muted">· stream stopped, waiting for a new token</span>`;
     $("evt").textContent = "(none)";
-    $("auto").textContent = "(none)";
-    renderEntities(false, false);
+    $("auto").textContent = STREAM_AUTO;
+    const changed = state.stream !== "off";
+    state.stream = "off";
+    renderEntities(false, false, false, changed);
     return;
   }
 
   const a = scn === "dup" ? (lastAlert || ALERTS.movement) : ALERTS[scn];
-  $("req").textContent = headers(a.id, "v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4=") + fmt(a);
+  const isNew = !seen.has(a.id);
+  if (isNew) seqOf[a.id] = savedSeq + 1;
+  const seq = seqOf[a.id];
+  $("req").textContent = "← " + fmt({ type: "alert", seq, alert: a });
 
-  if (seen.has(a.id)) {
-    setSteps([["ok", "✓", "Signature valid, timestamp within 5 minutes."], ["skip", "↺", `Already handled <code>${a.id}</code>. Runic sent it again (a retry), so it is ignored.`], ["idle", "–", "Nothing fired again, so your automation doesn't run twice."]]);
-    $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· Runic stops retrying</span>`;
+  if (!isNew) {
+    setSteps([...back, ["ok", "✓", `Received over the stream (seq ${seq}).`], ["skip", "↺", `Already handled <code>${a.id}</code>. After a reconnect Runic may send an alert again (delivery is at least once), so it is dropped.`], ["idle", "–", "Nothing fired again, so your automation doesn't run twice."], ["ok", "✓", `Seq ${savedSeq} is still saved, so a restart resumes from there.`]]);
+    $("resp").innerHTML = ok(`seq ${savedSeq} saved`, "nothing to answer: the stream needs no reply");
     $("evt").textContent = "(none: duplicate)";
     $("auto").textContent = "(not run again)";
-    renderEntities(false, false);
+    renderEntities(false, false, false, reauth);
     return;
   }
 
   seen.add(a.id);
   lastAlert = a;
+  savedSeq = seq;
   const moved = a.position && (a.position.lat !== state.lat || a.position.lon !== state.lon);
   const wasStatus = state.status;
   if (a.position) { state.lat = a.position.lat; state.lon = a.position.lon; }
   if (a.type === "alert.movement") state.status = "RUN";
   state.alert = a.type.replace("alert.", "");
-  const steps = [["ok", "✓", "Signature valid, timestamp within 5 minutes."], ["ok", "✓", `New alert <code>${a.id}</code>, remembered so retries are ignored.`], ["ok", "✓", `Fired Van 12's “${ALERT_NAMES[a.type.replace("alert.", "")]}” trigger, and <code>runic_event</code> with type <code>${a.type}</code>.`]];
+  const steps = [...back, ["ok", "✓", `Received over the stream (seq ${seq}).`], ["ok", "✓", `New alert <code>${a.id}</code>, remembered so repeats are dropped.`], ["ok", "✓", `Fired Van 12's “${ALERT_NAMES[a.type.replace("alert.", "")]}” trigger, and <code>runic_event</code> with type <code>${a.type}</code> (source: <code>stream</code>).`]];
   if (moved) steps.push(["ok", "✓", "Moved Van 12 on the map to the alert's position."]);
   steps.push(["ok", "✓", "Asked Runic for the vehicle's latest speed."]);
   if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "Speed is 38 km/h with a fresh fix, so the moving sensor switched on."]);
+  steps.push(["ok", "✓", `Saved seq ${seq}, so a restart resumes from here.`]);
   setSteps(steps);
-  $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· answered well inside Runic's 10-second limit</span>`;
+  $("resp").innerHTML = ok(`seq ${seq} saved`, "nothing to answer: the stream needs no reply");
   $("evt").textContent = "runic_event\n" + fmt(eventData(a));
   $("auto").textContent = AUTOS[a.type];
-  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true);
+  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true, reauth);
 }
 
-function reset() { state = { ...START }; seen.clear(); lastAlert = null; run("movement"); }
+function reset() { state = { ...START }; seen.clear(); for (const k in seqOf) delete seqOf[k]; savedSeq = START_SEQ; lastAlert = null; run("movement"); }
 
 document.querySelectorAll("[data-scn]").forEach(b => b.addEventListener("click", () => run(b.dataset.scn)));
 $("b-reset").addEventListener("click", reset);

@@ -130,9 +130,9 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <main>
   <header>
-    <span class="eyebrow">martineo14/ha-runic · v0.3.0</span>
+    <span class="eyebrow">martineo14/ha-runic · v0.5.0</span>
     <h1>Cosa fa l'integrazione Runic.io</h1>
-    <p class="muted">Collega i tuoi localizzatori GPS Runic a Home Assistant in due modi: legge dove si trova ogni veicolo e inoltra gli avvisi di Runic (partito, entrato in una zona, furto…) alle tue automazioni nel giro di pochi secondi.</p>
+    <p class="muted">Collega i tuoi localizzatori GPS Runic a Home Assistant in due modi: legge dove si trova ogni veicolo e inoltra gli avvisi di Runic (partito, entrato in una zona, furto…) alle tue automazioni nel giro di pochi secondi. Gli avvisi arrivano su una connessione aperta da Home Assistant stesso, quindi nessuno da internet deve raggiungere il tuo Home Assistant.</p>
   </header>
 
   <section aria-labelledby="flow">
@@ -144,17 +144,18 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <ul>
           <li>La posizione del veicolo e il suo stato in movimento / fermo sono registrati da Runic.</li>
           <li>Scatta una <strong>regola di avviso</strong> che hai creato nell'app Runic, per esempio “il veicolo è partito”.</li>
-          <li>Runic invia l'avviso al tuo Home Assistant, firmato con il tuo segreto <code>whsec_…</code>.</li>
+          <li>Runic invia l'avviso sullo stream in tempo reale che il tuo Home Assistant ha aperto. Non servono URL né segreti di firma.</li>
         </ul>
       </div>
       <div class="lane">
         <span class="eyebrow">L'integrazione</span>
         <h3>Lo controlla, poi lo annuncia</h3>
         <ul>
-          <li>Rifiuta tutto ciò che non ha una firma valida o che è più vecchio di 5 minuti.</li>
-          <li>Ignora le ripetizioni di un avviso già gestito.</li>
+          <li>Scarta le ripetizioni di un avviso già gestito.</li>
+          <li>Salva il numero di sequenza dell'avviso (<code>seq</code>), così dopo un riavvio riprende da dove si era fermata.</li>
           <li>Attiva il trigger del veicolo per quel tipo di avviso, per esempio “Allarme furto”.</li>
           <li>Sposta il veicolo sulla mappa e registra l'avviso nella sua entità “Ultimo avviso”.</li>
+          <li>Se la connessione cade, si riconnette e riprende da sola.</li>
         </ul>
       </div>
       <div class="lane">
@@ -173,20 +174,22 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <h2 id="paths">Due modi in cui arrivano i dati</h2>
     <div class="paths">
       <div class="path">
-        <span class="eyebrow">Ogni 5 minuti</span>
+        <span class="eyebrow">Ogni 5 minuti e dopo ogni avviso</span>
         <h3>Home Assistant chiede a Runic</h3>
         <p>Chiama <code>GET /vehicles</code> e <code>GET /vehicles/{id}</code> con il tuo token API. Per ogni veicolo tiene aggiornate tre entità:</p>
         <p><code>device_tracker.&lt;veicolo&gt;</code>: latitudine e longitudine, così compare sulla mappa.<br>
         <code>sensor.&lt;veicolo&gt;_speed</code>: velocità GPS dell'ultima rilevazione, in km/h.<br>
         <code>binary_sensor.&lt;veicolo&gt;_moving</code>: acceso quando l'ultima rilevazione ha meno di 15 minuti ed è a 5 km/h o più.</p>
         <p class="note">Lo stato <code>RUN</code> di Runic indica solo che il localizzatore è attivo (heartbeat, accensione), quindi non viene usato per “in movimento”.</p>
-        <p class="note">Funziona già oggi sulla tua rete locale, senza bisogno che Home Assistant sia raggiungibile da internet.</p>
+        <p class="note">Home Assistant fa solo richieste in uscita, quindi nessuno da internet deve raggiungerlo.</p>
       </div>
       <div class="path">
         <span class="eyebrow">Pochi secondi dopo un avviso</span>
-        <h3>Runic avvisa Home Assistant</h3>
-        <p>Runic invia ogni avviso all'URL del tuo webhook. È questo che avvia le automazioni. Copre 20 tipi di avviso, tra cui <code>alert.movement</code>, <code>alert.poi_area</code> (entrato in una zona o uscito), <code>alert.theft</code>, <code>alert.tow</code>, <code>alert.speed_limit</code> e <code>alert.low_battery</code>.</p>
-        <p class="note">Serve che Home Assistant sia raggiungibile da internet in HTTPS (Nabu Casa, un tunnel Cloudflare…) e una regola di avviso nell'app Runic per ogni tipo.</p>
+        <h3>Runic invia gli avvisi in streaming a Home Assistant</h3>
+        <p>Home Assistant apre una connessione in uscita verso <code>wss://api.runic.io/v1/alerts/stream</code> con il tuo token API, e Runic ci invia ogni avviso. È questo che avvia le automazioni. Copre 20 tipi di avviso, tra cui <code>alert.movement</code>, <code>alert.poi_area</code> (entrato in una zona o uscito), <code>alert.theft</code>, <code>alert.tow</code>, <code>alert.speed_limit</code> e <code>alert.low_battery</code>.</p>
+        <p class="note">Ti servono solo il token API, un endpoint “Real-time stream” nel portale sviluppatori di Runic con i tipi di avviso spuntati e una regola di avviso nell'app Runic per ogni tipo. Niente URL pubblico, port forwarding, Nabu Casa o tunnel: funziona dietro qualsiasi router, anche in 4G. Un sensore diagnostico “Stream avvisi” sul dispositivo Runic.io è acceso finché lo stream è connesso.</p>
+        <p class="note">Configurazione: nel portale sviluppatori, <span class="kbd">Add endpoint</span> → <span class="kbd">Real-time stream</span> (uno per azienda, senza URL né segreto). In Home Assistant, aggiungi Runic.io, incolla il token API e scegli <em>Stream in tempo reale (consigliato)</em>. <span class="kbd">Send test event</span> sull'endpoint invia <code>alert.test</code> a ogni client connesso.</p>
+        <p class="note">I webhook funzionano ancora come alternativa. Sono firmati e richiedono che Home Assistant sia raggiungibile in HTTPS pubblico, senza redirect. Le configurazioni che usano già un webhook lo mantengono e possono attivare lo stream da <span class="kbd">Runic.io</span> → <span class="kbd">Configura</span>. Possono funzionare insieme: gli avvisi vengono deduplicati in base al loro id.</p>
       </div>
     </div>
   </section>
@@ -198,14 +201,14 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <table class="choose">
         <thead><tr><th>Trigger</th><th>Scatta quando</th><th>Richiede</th><th>Adatto per</th></tr></thead>
         <tbody>
-          <tr><td><strong>Avviso Runic</strong><br><span class="muted">Trigger del dispositivo, es. “Allarme furto”</span></td><td>Pochi secondi dopo che Runic genera l'avviso</td><td><span class="chip chip-hook">Webhook</span></td><td>Furto, rimorchio, pulsante antipanico, incidente, geofence, eccesso di velocità, batteria, non raggiungibile</td></tr>
+          <tr><td><strong>Avviso Runic</strong><br><span class="muted">Trigger del dispositivo, es. “Allarme furto”</span></td><td>Pochi secondi dopo che Runic genera l'avviso</td><td><span class="chip chip-hook">Avviso Runic</span></td><td>Furto, rimorchio, pulsante antipanico, incidente, geofence, eccesso di velocità, batteria, non raggiungibile</td></tr>
           <tr><td><strong>Zona</strong><br><span class="muted"><code>device_tracker.&lt;veicolo&gt;</code></span></td><td>Il veicolo entra in una zona di Home Assistant o ne esce</td><td><span class="chip chip-poll">Solo polling</span></td><td>Arrivo a casa, uscita dal lavoro. Può richiedere fino a 5 minuti</td></tr>
           <tr><td><strong>In movimento</strong><br><span class="muted"><code>binary_sensor.&lt;veicolo&gt;_moving</code></span></td><td>Il sensore si accende o si spegne, eventualmente per un certo tempo</td><td><span class="chip chip-poll">Solo polling</span></td><td>Viaggio iniziato, parcheggiato da 30 minuti</td></tr>
           <tr><td><strong>Velocità</strong><br><span class="muted"><code>sensor.&lt;veicolo&gt;_speed</code></span></td><td>La velocità sale sopra o scende sotto un valore</td><td><span class="chip chip-poll">Solo polling</span></td><td>Le tue soglie di velocità</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">I trigger <span class="chip chip-hook">Webhook</span> richiedono che Home Assistant sia raggiungibile da internet e una regola di avviso nell'app Runic. I trigger <span class="chip chip-poll">Solo polling</span> (interrogazione periodica) funzionano sulla tua rete locale senza altro da configurare.</p>
+    <p class="note">I trigger <span class="chip chip-hook">Avviso Runic</span> richiedono un endpoint stream (o webhook) nel portale sviluppatori di Runic con quel tipo di avviso spuntato, più una regola di avviso nell'app Runic. I trigger <span class="chip chip-poll">Solo polling</span> (interrogazione periodica) funzionano senza altro da configurare.</p>
 
     <h3>Aggiungi un trigger per un avviso Runic nell'editor</h3>
     <ol class="steps-ui">
@@ -233,24 +236,26 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <li><code>{{ trigger.event.data.message }}</code>: il testo di Runic, nella lingua del tuo account</li>
       <li><code>{{ trigger.event.data.position.lat }}</code>, <code>{{ trigger.event.data.position.lon }}</code></li>
       <li><code>{{ trigger.event.data.data.poi_id }}</code>, <code>{{ trigger.event.data.direction }}</code>: per le geofence</li>
+      <li><code>{{ trigger.event.data.source }}</code>: <code>stream</code> o <code>webhook</code>, da dove è arrivato l'avviso</li>
     </ul>
   </section>
 
   <section aria-labelledby="sim">
     <h2 id="sim">Provalo: invia un avviso</h2>
-    <p class="muted">Un veicolo di esempio, “Furgone 12”, con i dati di esempio della documentazione API di Runic. Scegli cosa invia Runic e guarda cosa ne fa l'integrazione.</p>
+    <p class="muted">Un veicolo di esempio, “Furgone 12”, con i dati di esempio della documentazione API di Runic. Scegli cosa invia Runic sullo stream e guarda cosa ne fa l'integrazione.</p>
     <div class="controls" role="group" aria-label="Scegli cosa invia Runic">
       <button id="b-movement" data-scn="movement" aria-pressed="true">Il veicolo parte</button>
       <button id="b-poi" data-scn="poi">Entra in una zona</button>
       <button id="b-theft" data-scn="theft">Allarme furto</button>
       <button id="b-dup" data-scn="dup">Stesso avviso di nuovo (nuovo tentativo)</button>
-      <button id="b-bad" data-scn="bad">Richiesta contraffatta</button>
+      <button id="b-drop" data-scn="drop">La connessione cade</button>
+      <button id="b-revoke" data-scn="revoke">Token revocato</button>
       <button id="b-poll" data-scn="poll">Polling ogni 5 minuti: fermo</button>
       <button id="b-reset" class="ghost">Ripristina</button>
     </div>
     <div class="sim">
       <div class="panel">
-        <span class="eyebrow" id="req-label">Runic invia</span>
+        <span class="eyebrow" id="req-label">Runic invia sullo stream</span>
         <pre id="req" aria-live="polite"></pre>
         <h3>L'integrazione</h3>
         <ol class="steps" id="steps"></ol>
@@ -263,6 +268,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
           <div class="entity" id="e-tracker"><span class="id">device_tracker.furgone_12</span><span class="val" id="v-tracker"></span></div>
           <div class="entity" id="e-moving"><span class="id">binary_sensor.furgone_12_moving</span><span class="val" id="v-moving"></span></div>
           <div class="entity" id="e-alert"><span class="id">event.furgone_12_last_alert</span><span class="val" id="v-alert"></span></div>
+          <div class="entity" id="e-stream"><span class="id">binary_sensor.runic_io_alert_stream</span><span class="val" id="v-stream"></span></div>
         </div>
         <h3>Evento generato</h3>
         <pre id="evt"></pre>
@@ -273,22 +279,25 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </section>
 
   <section aria-labelledby="limits">
-    <h2 id="limits">Cosa la versione 0.3.0 non fa ancora</h2>
+    <h2 id="limits">Cosa la versione 0.5.0 non fa ancora</h2>
     <ul class="limits">
       <li>Il sensore “in movimento” si spegne solo al polling successivo, ogni 5 minuti. Runic non ha un avviso di “fermo”.</li>
       <li>Non ci sono ancora sensori per tensione della batteria, carburante o contachilometri, anche se l'API di Runic li fornisce.</li>
-      <li>La configurazione chiede un segreto di firma del webhook, anche se per ora ti serve solo il polling della posizione.</li>
       <li>I veicoli aggiunti in seguito al tuo account Runic compaiono solo dopo aver ricaricato l'integrazione.</li>
+      <li>Se Home Assistant resta scollegato dallo stream per più di 72 ore, gli avvisi di quell'intervallo vanno persi: Runic li conserva solo per 72 ore. L'integrazione aggiorna invece i veicoli tramite REST.</li>
     </ul>
   </section>
 
-  <footer>Codice sorgente: <span class="mono">github.com/martineo14/ha-runic</span>. Formati dei dati dalla documentazione Runic Vehicle Monitoring API 1.7.0 su developers.runic.io.</footer>
+  <footer>Codice sorgente: <span class="mono">github.com/martineo14/ha-runic</span>. Formati dei dati dalla documentazione Runic Vehicle Monitoring API 1.8.0 (Alert stream) su developers.runic.io.</footer>
 </main>
 
 <script>
-const START = { lat: 45.0, lon: 12.0, status: "STOP" };
+const START = { lat: 45.0, lon: 12.0, status: "STOP", stream: "on" };
+const START_SEQ = 1042;
 let state = { ...START };
 const seen = new Set();
+const seqOf = {};
+let savedSeq = START_SEQ;
 
 const base = (id, type, data, message, level, pos) => ({
   id, type, created_at: "2026-09-28T15:21:21Z", api_version: "2026-10-01",
@@ -307,6 +316,7 @@ const AUTOS = {
   "alert.poi_area": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: poi_enter\nactions:\n  - action: cover.open_cover\n    target:\n      entity_id: cover.garage_door`,
   "alert.theft": `triggers:\n  - trigger: device\n    domain: runic\n    device_id: ${DEV}\n    type: theft\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "FURTO: {{ trigger.event.data.plate }}"\n      data:\n        push:\n          interruption-level: critical`
 };
+const STREAM_AUTO = `Qualsiasi automazione avviata dal sensore Stream avvisi, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.runic_io_alert_stream\n    to: "off"\n    for: "00:10:00"\nactions:\n  - action: notify.mobile_app_phone\n    data:\n      message: "Lo stream avvisi di Runic non è connesso"`;
 const ALERT_NAMES = {
   movement: "Partito", poi_area: "Entrato o uscito da un punto di interesse", theft: "Allarme furto"
 };
@@ -397,7 +407,7 @@ actions:
       title: "{{ trigger.event.data.vehicle_name }}"
       message: "{{ trigger.event.data.message }}"` },
   { title: "Il veicolo arriva a casa", kind: "poll",
-    text: "Usa una zona di Home Assistant, quindi funziona senza il webhook. Può richiedere fino a 5 minuti, l'intervallo di polling.",
+    text: "Usa una zona di Home Assistant, quindi funziona senza configurare avvisi Runic. Può richiedere fino a 5 minuti, l'intervallo di polling.",
     yaml: `alias: Camion 3 è a casa
 triggers:
   - trigger: zone
@@ -438,7 +448,7 @@ function renderRecipes() {
   document.getElementById("recipes").innerHTML = RECIPES.map((r, i) => `
     <article class="recipe">
       <div class="about">
-        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Webhook</span>' : '<span class="chip chip-poll">Solo polling</span>'}</span>
+        <span>${r.kind === "hook" ? '<span class="chip chip-hook">Avviso Runic</span>' : '<span class="chip chip-poll">Solo polling</span>'}</span>
         <h3>${r.title}</h3>
         <p class="note">${r.text}</p>
       </div>
@@ -459,17 +469,20 @@ let lastAlert = null;
 
 const $ = (id) => document.getElementById(id);
 const fmt = (o) => JSON.stringify(o, null, 2);
-const headers = (id, sig) => `POST /api/webhook/<il tuo id>\nwebhook-id: ${id}\nwebhook-timestamp: 1790608881\nwebhook-signature: ${sig}\n\n`;
+const line = (o) => JSON.stringify(o).replace(/,"/g, ', "').replace(/":/g, '": ');
+const hello = (last) => line({ type: "hello", protocol: 1, api_version: "2026-10-01", last_seq: last, oldest_seq: 880, retention_hours: 72 });
+const ok = (strong, rest) => `<span style="color:var(--ok)">${strong}</span> <span class="muted">· ${rest}</span>`;
 
 function setSteps(list) {
   $("steps").innerHTML = list.map(([cls, mark, text]) =>
     `<li class="s-${cls}"><span class="mark">${mark}</span><span>${text}</span></li>`).join("");
 }
-function renderEntities(changedTracker, changedMoving, changedAlert = false) {
+function renderEntities(changedTracker, changedMoving, changedAlert = false, changedStream = false) {
   $("v-tracker").textContent = `${state.lat.toFixed(6)}, ${state.lon.toFixed(6)}`;
   $("v-moving").textContent = state.status === "RUN" ? "acceso (in movimento)" : "spento (fermo)";
   $("v-alert").textContent = state.alert ? ALERT_NAMES[state.alert] : "sconosciuto (nessun avviso)";
-  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert]]) {
+  $("v-stream").textContent = state.stream === "on" ? "acceso (connesso)" : "spento (disconnesso)";
+  for (const [el, on] of [["e-tracker", changedTracker], ["e-moving", changedMoving], ["e-alert", changedAlert], ["e-stream", changedStream]]) {
     $(el).classList.remove("changed");
     if (on) { void $(el).offsetWidth; $(el).classList.add("changed"); }
   }
@@ -477,68 +490,100 @@ function renderEntities(changedTracker, changedMoving, changedAlert = false) {
 function eventData(a) {
   const alert = a.type.replace("alert.", "");
   return { id: a.id, type: a.type, alert, device_id: "a1b2c3d4e5f6", direction: a.data.direction ?? null, level: a.level, created_at: a.created_at, vehicle_id: a.vehicle.id,
-    vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message };
+    vehicle_name: a.vehicle.name, plate: a.vehicle.plate, position: a.position, data: a.data, message: a.message, source: "stream" };
 }
 
 function run(scn) {
   document.querySelectorAll("[data-scn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scn === scn)));
-  $("req-label").textContent = scn === "poll" ? "Home Assistant chiede a Runic" : "Runic invia";
+  $("req-label").textContent = scn === "poll" ? "Home Assistant chiede a Runic" : (scn === "drop" || scn === "revoke") ? "Sullo stream (← Runic, → Home Assistant)" : "Runic invia sullo stream";
+
+  // Dopo "Token revocato", ogni altro scenario presume che tu abbia inserito un nuovo token.
+  const reauth = state.stream === "off" && scn !== "revoke";
+  const back = reauth ? [["ok", "✓", "Hai inserito un nuovo token API, quindi lo stream si è riconnesso ed è ripreso."]] : [];
+  if (reauth) state.stream = "on";
 
   if (scn === "poll") {
     const v = { id: 58806, name: "Furgone 12", plate: "AB123CD", latitude: state.lat, longitude: state.lon, speed: 0, timestamp: 1790609100, status: "RUN" };
     $("req").textContent = `GET https://api.runic.io/v1/vehicles/58806\nAuthorization: Bearer <il tuo token>\n\n← ${fmt({ vehicle: v })}\n\nRunic dice ancora RUN: il localizzatore parcheggiato sta inviando heartbeat.`;
     const changed = state.status !== "STOP";
     state.status = "STOP";
-    setSteps([["ok", "✓", "Runic ha accettato il token API."], ["ok", "✓", "La velocità è 0 km/h, quindi il sensore di movimento è spento, qualunque cosa dica lo stato di Runic."], ["idle", "–", "Nessun evento generato: il polling aggiorna solo le entità."]]);
+    setSteps([...back, ["ok", "✓", "Runic ha accettato il token API."], ["ok", "✓", "La velocità è 0 km/h, quindi il sensore di movimento è spento, qualunque cosa dica lo stato di Runic."], ["idle", "–", "Nessun evento generato: il polling aggiorna solo le entità. Lo stesso polling parte anche subito dopo ogni avviso."]]);
     $("resp").textContent = "";
     $("evt").textContent = "(nessuno)";
     $("auto").textContent = "Qualsiasi automazione avviata dalle entità stesse, per esempio:\n\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.furgone_12_moving\n    to: \"off\"";
-    renderEntities(false, changed);
+    renderEntities(false, changed, false, reauth);
     return;
   }
 
-  if (scn === "bad") {
-    const a = ALERTS.movement;
-    $("req").textContent = headers("evt_99999999", "v1,Zm9yZ2VkLXNpZ25hdHVyZQ==") + fmt({ ...a, id: "evt_99999999", type: "alert.theft" });
-    setSteps([["bad", "✗", "La firma non corrisponde al tuo segreto <code>whsec_…</code>. Richiesta rifiutata."], ["idle", "–", "Controllo dei duplicati: non raggiunto."], ["idle", "–", "Niente è stato attivato, niente è cambiato."]]);
-    $("resp").innerHTML = `<span style="color:var(--bad)">← 401 Unauthorized</span> <span class="muted">· viene scritto un avviso nel log di Home Assistant</span>`;
+  if (scn === "drop") {
+    $("req").textContent = `✕ chiusa (codice 1012: Runic sta facendo un deploy)\n\n… 1 s dopo, Home Assistant si riconnette:\nGET wss://api.runic.io/v1/alerts/stream\nAuthorization: Bearer <il tuo token>\n\n← ${hello(savedSeq)}\n→ ${line({ type: "resume", after: savedSeq })}\n→ ping   ← pong   (ogni 30 s)`;
+    setSteps([...back,
+      ["bad", "✗", "Connessione chiusa: Runic sta pubblicando una nuova versione."],
+      ["ok", "✓", "Riconnessa dopo 1 s. Se continua a fallire, l'attesa raddoppia fino a 5 minuti, più un piccolo ritardo casuale."],
+      ["ok", "✓", `Ricevuto <code>hello</code> (last_seq ${savedSeq}, Runic conserva 72 ore).`],
+      ["ok", "✓", `Inviato <code>resume</code> dopo ${savedSeq}, l'ultima seq salvata.`],
+      ["ok", "✓", "Niente di perso: un avviso inviato mentre era scollegata arriverebbe adesso, in ordine."],
+      ["ok", "✓", "Il sensore Stream avvisi si è spento e poi riacceso."]]);
+    $("resp").innerHTML = ok(`ripreso dopo la seq ${savedSeq}`, "di nuovo connesso, nessun avviso perso");
+    $("evt").textContent = "(nessuno: non è stato perso niente)";
+    $("auto").textContent = STREAM_AUTO;
+    state.stream = "on";
+    renderEntities(false, false, false, true);
+    return;
+  }
+
+  if (scn === "revoke") {
+    $("req").textContent = `✕ chiusa (codice 4401: token revocato o scaduto)\n\nUna nuova connessione con lo stesso token verrebbe\nrifiutata con HTTP 401, quindi l'integrazione non riprova.`;
+    setSteps([
+      ["bad", "✗", "Runic ha chiuso lo stream con il codice 4401: il token API è stato revocato o è scaduto."],
+      ["idle", "–", "Lo stream si ferma. Riconnettersi con lo stesso token non può funzionare."],
+      ["skip", "!", "Home Assistant chiede la riautenticazione: inserisci un nuovo token API Runic, da <span class=\"kbd\">Impostazioni</span> → <span class=\"kbd\">Dispositivi e servizi</span>."],
+      ["ok", "✓", "Quando inserisci un nuovo token, lo stream riprende dall'ultima seq salvata."]]);
+    $("resp").innerHTML = `<span style="color:var(--bad)">chiusura 4401</span> <span class="muted">· stream fermo, in attesa di un nuovo token</span>`;
     $("evt").textContent = "(nessuno)";
-    $("auto").textContent = "(nessuna)";
-    renderEntities(false, false);
+    $("auto").textContent = STREAM_AUTO;
+    const changed = state.stream !== "off";
+    state.stream = "off";
+    renderEntities(false, false, false, changed);
     return;
   }
 
   const a = scn === "dup" ? (lastAlert || ALERTS.movement) : ALERTS[scn];
-  $("req").textContent = headers(a.id, "v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4=") + fmt(a);
+  const isNew = !seen.has(a.id);
+  if (isNew) seqOf[a.id] = savedSeq + 1;
+  const seq = seqOf[a.id];
+  $("req").textContent = "← " + fmt({ type: "alert", seq, alert: a });
 
-  if (seen.has(a.id)) {
-    setSteps([["ok", "✓", "Firma valida, timestamp entro 5 minuti."], ["skip", "↺", `<code>${a.id}</code> è già stato gestito. Runic l'ha inviato di nuovo (un nuovo tentativo), quindi viene ignorato.`], ["idle", "–", "Niente viene riattivato, quindi la tua automazione non parte due volte."]]);
-    $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· Runic smette di riprovare</span>`;
+  if (!isNew) {
+    setSteps([...back, ["ok", "✓", `Ricevuto sullo stream (seq ${seq}).`], ["skip", "↺", `<code>${a.id}</code> è già stato gestito. Dopo una riconnessione Runic può inviare di nuovo un avviso (consegna almeno una volta), quindi viene scartato.`], ["idle", "–", "Niente viene riattivato, quindi la tua automazione non parte due volte."], ["ok", "✓", `La seq ${savedSeq} resta salvata, quindi un riavvio riprende da lì.`]]);
+    $("resp").innerHTML = ok(`seq ${savedSeq} salvata`, "niente da rispondere: lo stream non richiede risposta");
     $("evt").textContent = "(nessuno: duplicato)";
     $("auto").textContent = "(non eseguita di nuovo)";
-    renderEntities(false, false);
+    renderEntities(false, false, false, reauth);
     return;
   }
 
   seen.add(a.id);
   lastAlert = a;
+  savedSeq = seq;
   const moved = a.position && (a.position.lat !== state.lat || a.position.lon !== state.lon);
   const wasStatus = state.status;
   if (a.position) { state.lat = a.position.lat; state.lon = a.position.lon; }
   if (a.type === "alert.movement") state.status = "RUN";
   state.alert = a.type.replace("alert.", "");
-  const steps = [["ok", "✓", "Firma valida, timestamp entro 5 minuti."], ["ok", "✓", `Nuovo avviso <code>${a.id}</code>, memorizzato così i nuovi tentativi vengono ignorati.`], ["ok", "✓", `Attivato il trigger “${ALERT_NAMES[a.type.replace("alert.", "")]}” di Furgone 12 e generato <code>runic_event</code> con tipo <code>${a.type}</code>.`]];
+  const steps = [...back, ["ok", "✓", `Ricevuto sullo stream (seq ${seq}).`], ["ok", "✓", `Nuovo avviso <code>${a.id}</code>, memorizzato così le ripetizioni vengono scartate.`], ["ok", "✓", `Attivato il trigger “${ALERT_NAMES[a.type.replace("alert.", "")]}” di Furgone 12 e generato <code>runic_event</code> con tipo <code>${a.type}</code> (source: <code>stream</code>).`]];
   if (moved) steps.push(["ok", "✓", "Furgone 12 spostato sulla mappa nella posizione dell'avviso."]);
   steps.push(["ok", "✓", "Chiesta a Runic l'ultima velocità del veicolo."]);
   if (a.type === "alert.movement" && wasStatus !== "RUN") steps.push(["ok", "✓", "La velocità è 38 km/h con una rilevazione recente, quindi il sensore di movimento si è acceso."]);
+  steps.push(["ok", "✓", `Salvata la seq ${seq}, così un riavvio riprende da qui.`]);
   setSteps(steps);
-  $("resp").innerHTML = `<span style="color:var(--ok)">← 200 OK</span> <span class="muted">· risposta ben entro il limite di 10 secondi di Runic</span>`;
+  $("resp").innerHTML = ok(`seq ${seq} salvata`, "niente da rispondere: lo stream non richiede risposta");
   $("evt").textContent = "runic_event\n" + fmt(eventData(a));
   $("auto").textContent = AUTOS[a.type];
-  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true);
+  renderEntities(moved, a.type === "alert.movement" && wasStatus !== "RUN", true, reauth);
 }
 
-function reset() { state = { ...START }; seen.clear(); lastAlert = null; run("movement"); }
+function reset() { state = { ...START }; seen.clear(); for (const k in seqOf) delete seqOf[k]; savedSeq = START_SEQ; lastAlert = null; run("movement"); }
 
 document.querySelectorAll("[data-scn]").forEach(b => b.addEventListener("click", () => run(b.dataset.scn)));
 $("b-reset").addEventListener("click", reset);
