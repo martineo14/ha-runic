@@ -24,11 +24,15 @@ class RunicApiClient:
         self._session = session
         self._headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async def _get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+    async def _request(
+        self, method: str, path: str, params: dict[str, str] | None = None, body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         try:
-            async with self._session.get(
+            async with self._session.request(
+                method,
                 f"{API_BASE}{path}",
                 params=params,
+                json=body,
                 headers=self._headers,
                 timeout=aiohttp.ClientTimeout(total=20),
             ) as resp:
@@ -42,9 +46,17 @@ class RunicApiClient:
                     raise RunicError(
                         f"HTTP {resp.status} (request id {resp.headers.get('X-Request-Id')})"
                     )
-                return await resp.json()
+                if resp.status == 204:
+                    return {}
+                try:
+                    return await resp.json()
+                except (aiohttp.ContentTypeError, ValueError):
+                    return {}  # e.g. an empty body on DELETE
         except aiohttp.ClientError as err:
             raise RunicError(str(err)) from err
+
+    async def _get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+        return await self._request("GET", path, params)
 
     async def list_vehicles(self) -> list[dict[str, Any]]:
         """GET /vehicles: id, name, latitude, longitude, timestamp, status."""
@@ -66,3 +78,26 @@ class RunicApiClient:
     async def get_day_tracks(self, vehicle_id: int, day: str) -> dict[str, Any]:
         """GET /vehicles/{id}/tracks for one day: the trips and stops."""
         return await self._get(f"/vehicles/{vehicle_id}/tracks", {"date": day})
+
+    async def list_pois(self) -> list[dict[str, Any]]:
+        """GET /pois: poi_id, name, latitude, longitude, radius_m, address."""
+        return (await self._get("/pois")).get("pois") or []
+
+    async def create_poi(self, name: str, latitude: float, longitude: float, radius_m: int, address: str) -> int:
+        """POST /pois: a circular point of interest. Returns its poi_id."""
+        body = {"name": name, "latitude": latitude, "longitude": longitude, "radius_m": radius_m, "address": address}
+        return int((await self._request("POST", "/pois", body=body))["poi_id"])
+
+    async def delete_poi(self, poi_id: int) -> None:
+        await self._request("DELETE", f"/pois/{poi_id}")
+
+    async def list_alert_rules(self) -> list[dict[str, Any]]:
+        """GET /alerts: the alert rules (not the alerts that fired)."""
+        return (await self._get("/alerts")).get("alerts") or []
+
+    async def create_alert_rule(self, rule: dict[str, Any]) -> int:
+        """POST /alerts. Runic requires at least one notification email."""
+        return int((await self._request("POST", "/alerts", body=rule))["alert_id"])
+
+    async def delete_alert_rule(self, alert_id: int) -> None:
+        await self._request("DELETE", f"/alerts/{alert_id}")

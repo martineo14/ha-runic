@@ -14,15 +14,27 @@ from aiohttp import web
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_WEBHOOK_ID, Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import RunicApiClient
-from .const import CONF_API_TOKEN, CONF_SIGNING_SECRET, DOMAIN, EVENT_RUNIC
+from .const import (
+    CONF_API_TOKEN,
+    CONF_SIGNING_SECRET,
+    CONF_SYNC_ZONES,
+    CONF_ZONE_ALERT_EMAIL,
+    DOMAIN,
+    EVENT_RUNIC,
+)
 from .coordinator import RunicCoordinator, RunicTodayCoordinator
 from .signature import signature_problem
 from .stream import RunicStream, StreamAuthError, uses_stream
+from .zones import ZoneSync
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT, Platform.SENSOR]
@@ -33,11 +45,32 @@ class RunicData:
     coordinator: RunicCoordinator
     today: RunicTodayCoordinator
     stream: RunicStream | None = None
+    zone_sync: ZoneSync | None = None
     # Delivery is at-least-once, and the stream and webhooks can both be on: drop repeats by alert id.
     seen_ids: deque[str] = field(default_factory=lambda: deque(maxlen=500))
 
 
 type RunicConfigEntry = ConfigEntry[RunicData]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async def sync_zones(call: ServiceCall) -> None:
+        syncs = [
+            e.runtime_data.zone_sync
+            for e in hass.config_entries.async_loaded_entries(DOMAIN)
+            if e.runtime_data.zone_sync
+        ]
+        if not syncs:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="zone_sync_off"
+            )
+        for sync in syncs:
+            await sync.async_sync()
+
+    hass.services.async_register(DOMAIN, "sync_zones", sync_zones)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> bool:
@@ -69,6 +102,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> boo
 
     if stream := entry.runtime_data.stream:
         entry.async_create_background_task(hass, _run_stream(hass, entry, stream), "runic_stream")
+
+    if entry.options.get(CONF_SYNC_ZONES):
+        zone_sync = ZoneSync(
+            hass, client, entry.options.get(CONF_ZONE_ALERT_EMAIL), on_done=coordinator.async_request_refresh
+        )
+        entry.runtime_data.zone_sync = zone_sync
+        entry.async_on_unload(zone_sync.async_listen())
+
+        async def _sync_when_started(_: HomeAssistant) -> None:
+            await zone_sync.async_sync()
+
+        entry.async_on_unload(async_at_started(hass, _sync_when_started))
 
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
@@ -106,6 +151,13 @@ def async_process_alert(
     data.seen_ids.append(alert["id"])
 
     vehicle = alert.get("vehicle") or {}
+    details = alert.get("data") or {}
+    poi = None
+    if details.get("poi_id") is not None:
+        try:
+            poi = data.coordinator.pois.get(int(details["poi_id"]))
+        except (TypeError, ValueError):
+            pass
     device = (
         dr.async_get(hass).async_get_device(identifiers={(DOMAIN, str(vehicle["id"]))})
         if vehicle.get("id") is not None
@@ -118,7 +170,8 @@ def async_process_alert(
             "type": alert["type"],  # e.g. alert.movement, alert.poi_area
             "alert": alert["type"].removeprefix("alert."),
             "device_id": device.id if device else None,
-            "direction": (alert.get("data") or {}).get("direction"),
+            "direction": details.get("direction"),
+            "poi_name": poi["name"] if poi else None,
             "level": alert.get("level"),
             "created_at": alert.get("created_at"),
             "vehicle_id": vehicle.get("id"),

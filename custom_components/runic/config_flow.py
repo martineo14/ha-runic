@@ -14,7 +14,14 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import RunicApiClient, RunicAuthError, RunicError
-from .const import CONF_API_TOKEN, CONF_SIGNING_SECRET, CONF_STREAM, DOMAIN
+from .const import (
+    CONF_API_TOKEN,
+    CONF_SIGNING_SECRET,
+    CONF_STREAM,
+    CONF_SYNC_ZONES,
+    CONF_ZONE_ALERT_EMAIL,
+    DOMAIN,
+)
 from .stream import uses_stream
 
 PORTAL_URL = "https://developers.runic.io/portal/webhooks"
@@ -129,16 +136,31 @@ class RunicConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class RunicOptionsFlow(OptionsFlow):
-    """Switch the real-time stream on or off. A webhook set up earlier keeps working alongside it."""
+    """The real-time stream, and mirroring Home Assistant zones as Runic POIs."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            email = (user_input.get(CONF_ZONE_ALERT_EMAIL) or "").strip()
+            if email and ("@" not in email or " " in email):
+                errors[CONF_ZONE_ALERT_EMAIL] = "invalid_email"
+            else:
+                return self.async_create_entry(data={**user_input, CONF_ZONE_ALERT_EMAIL: email})
+
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_STREAM, default=uses_stream(self.config_entry)): bool}
+                {
+                    vol.Required(CONF_STREAM, default=uses_stream(self.config_entry)): bool,
+                    vol.Required(CONF_SYNC_ZONES, default=options.get(CONF_SYNC_ZONES, False)): bool,
+                    vol.Optional(
+                        CONF_ZONE_ALERT_EMAIL,
+                        description={"suggested_value": options.get(CONF_ZONE_ALERT_EMAIL, "")},
+                    ): str,
+                }
             ),
+            errors=errors,
         )

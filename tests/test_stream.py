@@ -51,6 +51,7 @@ class FakeRunic:
         app.router.add_get("/v1/vehicles/{vid}/status", self._json({"vehicle_status": [], "odometer": None}))
         app.router.add_get("/v1/vehicles/{vid}/reports", self._json({"paths": []}))
         app.router.add_get("/v1/vehicles/{vid}/tracks", self._json({"tracks": [], "stops": []}))
+        app.router.add_get("/v1/pois", self._json({"result": "SUCCESS", "pois": []}))
         app.router.add_get("/v1/alerts/stream", self._stream)
         return app
 

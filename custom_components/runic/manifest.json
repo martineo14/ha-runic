@@ -1,6 +1,9 @@
 {
   "domain": "runic",
   "name": "Runic.io",
+  "after_dependencies": [
+    "zone"
+  ],
   "codeowners": [
     "@martineo14"
   ],
@@ -12,5 +15,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/martineo14/ha-runic/issues",
   "requirements": [],
-  "version": "0.6.0"
+  "version": "0.7.0"
 }

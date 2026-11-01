@@ -58,6 +58,8 @@ Each vehicle is a device. Its page in Settings → Devices & services shows, dep
 | Today: distance, driving, trips, stopped | `sensor.<vehicle>_distance_today`, `_driving_time_today`, `_trips_today`, `_stopped_time_today` (every 15 minutes, back to zero each day) |
 | Mileage, engine hours | `sensor.<vehicle>_odometer`, `sensor.<vehicle>_engine_hours` |
 | Service deadline | `sensor.<vehicle>_next_service`, set by Runic's maintenance alert, with the task as an attribute |
+| Where it is | `sensor.<vehicle>_point_of_interest`: the Runic POI it's in, by name, or *Away* |
+| From the tracker, when wired | ignition, engine, immobilizer, doors (each door as an attribute), cargo temperature and humidity, fuel used; digital inputs (off by default, turn them on per vehicle) |
 | Also | speed, moving, battery voltage, fuel level, last alert; GSM signal (diagnostic, off by default) |
 
 The device page also shows the plate (as serial number), the tracker firmware and a **Visit** link to the
@@ -71,6 +73,19 @@ paste the file and replace `van_12` with your vehicle's entity name.
 
 Entity ids follow Home Assistant's language when the integration is first added: on an Italian system they
 are `sensor.<vehicle>_velocita`, `_stato`, `_distanza_oggi`… (see the Italian README).
+
+## Points of interest and zones
+
+Geofence alerts carry the POI's **name**: use `{{ trigger.event.data.poi_name }}` in messages and conditions,
+for example `{{ trigger.event.data.poi_name == 'Warehouse' }}`, instead of a numeric id.
+
+**Sync Home Assistant zones to Runic** (Runic.io → Configure): every zone you have in Home Assistant, except
+passive ones, becomes a Runic point of interest with the same name, position and radius (Runic accepts
+50 m to 50 km). Moving, resizing, renaming or deleting a zone updates Runic within 30 seconds; the
+`runic.sync_zones` action syncs on demand. Add an email in the same screen and it also creates the enter and
+leave alert rules for every vehicle, since Runic requires an email for each rule.
+It only ever changes the POIs it created (their address reads *Home Assistant zone zone.…*);
+POIs drawn in the Runic app are left alone.
 
 ## How it works
 

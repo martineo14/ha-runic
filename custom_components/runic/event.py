@@ -44,6 +44,7 @@ class RunicAlert(RunicVehicleEntity, EventEntity):
                 "created_at": data.get("created_at"),
                 "position": data.get("position"),
                 "details": data.get("data"),
+                "poi_name": data.get("poi_name"),
             },
         )
         self.async_write_ha_state()

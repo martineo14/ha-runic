@@ -88,6 +88,21 @@
       },
       "next_service": {
         "name": "Prossimo tagliando"
+      },
+      "temperature": {
+        "name": "Temperatura"
+      },
+      "humidity": {
+        "name": "Umidità"
+      },
+      "fuel_used": {
+        "name": "Carburante consumato"
+      },
+      "poi": {
+        "name": "Punto di interesse",
+        "state": {
+          "away": "Fuori"
+        }
       }
     },
     "event": {
@@ -123,6 +138,41 @@
     "binary_sensor": {
       "stream": {
         "name": "Stream avvisi"
+      },
+      "ignition": {
+        "name": "Quadro acceso"
+      },
+      "engine": {
+        "name": "Motore"
+      },
+      "immobilizer": {
+        "name": "Immobilizzatore"
+      },
+      "doors": {
+        "name": "Porte",
+        "state_attributes": {
+          "front_left": {
+            "name": "Anteriore sinistra"
+          },
+          "front_right": {
+            "name": "Anteriore destra"
+          },
+          "rear_left": {
+            "name": "Posteriore sinistra"
+          },
+          "rear_right": {
+            "name": "Posteriore destra"
+          },
+          "hood": {
+            "name": "Cofano"
+          },
+          "trunk": {
+            "name": "Bagagliaio"
+          }
+        }
+      },
+      "digital_input": {
+        "name": "Ingresso digitale {number}"
       }
     }
   },
@@ -155,11 +205,27 @@
     "step": {
       "init": {
         "title": "Opzioni Runic.io",
-        "description": "Lo stream in tempo reale riceve gli avvisi senza un URL pubblico. Richiede un endpoint “Real-time stream” nel portale Runic. Un webhook configurato prima continua a funzionare insieme allo stream.",
+        "description": "Lo stream in tempo reale riceve gli avvisi senza un URL pubblico; richiede un endpoint “Real-time stream” nel portale Runic. La sincronizzazione delle zone copia le tue zone di Home Assistant (non quelle passive) in Runic come punti di interesse, così Runic genera gli avvisi di entrata e uscita. Modifica solo i punti di interesse che ha creato. Con un'email crea anche le regole di avviso di entrata e uscita per tutti i veicoli (Runic richiede un'email per ogni regola).",
         "data": {
-          "stream": "Usa lo stream di avvisi in tempo reale"
+          "stream": "Usa lo stream di avvisi in tempo reale",
+          "sync_zones": "Sincronizza le zone di Home Assistant con i punti di interesse Runic",
+          "zone_alert_email": "Email per le notifiche di Runic (crea le regole di entrata e uscita)"
         }
       }
+    },
+    "error": {
+      "invalid_email": "Inserisci un indirizzo email valido oppure lascia vuoto."
+    }
+  },
+  "exceptions": {
+    "zone_sync_off": {
+      "message": "La sincronizzazione delle zone è disattivata. Attivala da Runic.io → Configura."
+    }
+  },
+  "services": {
+    "sync_zones": {
+      "name": "Sincronizza le zone con Runic",
+      "description": "Copia subito le zone di Home Assistant nei punti di interesse Runic, senza aspettare la prossima modifica."
     }
   }
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any
 
@@ -43,6 +44,8 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=SCAN_INTERVAL
         )
         self.client = client
+        # Runic points of interest by id, for names in alerts and the "Point of interest" sensor.
+        self.pois: dict[int, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[int, dict[str, Any]]:
         try:
@@ -54,6 +57,12 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             statuses = await asyncio.gather(
                 *(self.client.get_status(v["id"]) for v in vehicles), return_exceptions=True
             )
+            try:
+                self.pois = {int(p["poi_id"]): p for p in await self.client.list_pois()}
+            except RunicAuthError:
+                raise
+            except RunicError as err:
+                _LOGGER.debug("Keeping the previous POIs: %s", err)
         except RunicAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except RunicError as err:
@@ -152,3 +161,22 @@ class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
         if ids and all(isinstance(r, BaseException) for r in (*reports, *tracks)):
             raise UpdateFailed("Runic returned no reports or tracks")
         return result
+
+
+def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in meters."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 2 * 6_371_000 * math.asin(math.sqrt(a))
+
+
+def poi_at(vehicle: dict[str, Any], pois: dict[int, dict[str, Any]]) -> dict[str, Any] | None:
+    """The smallest Runic POI the vehicle is inside, if any."""
+    lat, lon = vehicle.get("latitude"), vehicle.get("longitude")
+    if lat is None or lon is None:
+        return None
+    inside = [
+        p for p in pois.values()
+        if distance_m(lat, lon, p["latitude"], p["longitude"]) <= p["radius_m"]
+    ]
+    return min(inside, key=lambda p: p["radius_m"], default=None)

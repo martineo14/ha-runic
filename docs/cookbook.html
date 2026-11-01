@@ -1,101 +1,187 @@
 <title>Runic Automation Cookbook</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: one reading column. An index of every alert, group filters, then one recipe per alert: the story and needs on the left, the YAML on the right. */
+:root { --page-max: 1080px; }
 :root {
-  --bg: #f6f6f2;
+  /* Runic.io palette (www.runic.io / developers.runic.io): warm canvas, ink, neutral greys, yellow as fill only. */
+  --bg: #fbfbf9;
   --surface: #ffffff;
-  --fg: #1b1d1a;
-  --muted: #5d625a;
-  --line: #dcdcd3;
-  --accent: #806700;
-  --accent-fill: #f5c518;
+  --surface-2: #f5f5f5;
+  --fg: #151515;
+  --ink: #111111;
+  --muted: #525252;
+  --label: #737373;
+  --faint: #a3a3a3;
+  --line: #e5e5e5;
+  --line-soft: rgba(229, 229, 229, 0.8);
+  --line-strong: #d4d4d4;
+  --hover-line: #737373;
+  --accent: #806700;      /* accessible yellow-ish text on light */
+  --accent-fill: #f5c518; /* Runic yellow, fill only */
+  --accent-fill-hover: #e5b813;
   --on-accent: #151515;
-  --critical: #b3261e;
-  --code-bg: #efefe8;
-  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
-  --body: "IBM Plex Sans", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --ok: #15803d;
+  --bad: #b91c1c;
+  --skip: #806700;
+  --critical: #b91c1c;
+  --code-bg: #f3f3ef;
+  --code-fg: #151515;
+  --pre-bg: #151515;
+  --pre-fg: #ececea;
+  --pre-line: rgba(255, 255, 255, 0.1);
+  --pre-btn: rgba(255, 255, 255, 0.08);
+  --pre-btn-fg: #e5e5e5;
+  --shadow: 0 1px 2px rgba(21, 21, 21, 0.06);
+  --shadow-lift: 0 24px 50px -28px rgba(21, 21, 21, 0.35);
+  --display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121311; --surface: #1b1d1a; --fg: #ecece6; --muted: #a3a79d; --line: #2f322d;
-    --accent: #f5c518; --accent-fill: #f5c518; --on-accent: #151515; --critical: #ff8a80; --code-bg: #232520;
+    --bg: #111111; --surface: #181818; --surface-2: #1f1f1f; --fg: #f5f5f4; --ink: #fafafa;
+    --muted: #a3a3a3; --label: #8f8f8f; --faint: #737373;
+    --line: #2a2a2a; --line-soft: rgba(255, 255, 255, 0.08); --line-strong: #3a3a3a; --hover-line: #a3a3a3;
+    --accent: #f5c518; --accent-fill: #f5c518; --accent-fill-hover: #e5b813; --on-accent: #151515;
+    --ok: #4ade80; --bad: #f87171; --skip: #f5c518; --critical: #f87171;
+    --code-bg: #242424; --code-fg: #f5f5f4;
+    --pre-bg: #0a0a0a; --pre-fg: #ececea; --pre-line: rgba(255, 255, 255, 0.08);
+    --pre-btn: rgba(255, 255, 255, 0.08); --pre-btn-fg: #e5e5e5;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); --shadow-lift: 0 24px 50px -28px rgba(0, 0, 0, 0.8);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #121311; --surface: #1b1d1a; --fg: #ecece6; --muted: #a3a79d; --line: #2f322d;
-  --accent: #f5c518; --accent-fill: #f5c518; --on-accent: #151515; --critical: #ff8a80; --code-bg: #232520;
-  color-scheme: dark;
+    --bg: #111111; --surface: #181818; --surface-2: #1f1f1f; --fg: #f5f5f4; --ink: #fafafa;
+    --muted: #a3a3a3; --label: #8f8f8f; --faint: #737373;
+    --line: #2a2a2a; --line-soft: rgba(255, 255, 255, 0.08); --line-strong: #3a3a3a; --hover-line: #a3a3a3;
+    --accent: #f5c518; --accent-fill: #f5c518; --accent-fill-hover: #e5b813; --on-accent: #151515;
+    --ok: #4ade80; --bad: #f87171; --skip: #f5c518; --critical: #f87171;
+    --code-bg: #242424; --code-fg: #f5f5f4;
+    --pre-bg: #0a0a0a; --pre-fg: #ececea; --pre-line: rgba(255, 255, 255, 0.08);
+    --pre-btn: rgba(255, 255, 255, 0.08); --pre-btn-fg: #e5e5e5;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); --shadow-lift: 0 24px 50px -28px rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body {
+  margin: 0;
   background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body);
+  -webkit-font-smoothing: antialiased;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-main { max-width: 1080px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 40px; }
-h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
-h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 800; letter-spacing: -0.02em; }
-h2 { font-size: 22px; font-weight: 700; }
-h3 { font-size: 18px; font-weight: 700; }
+::selection { background: color-mix(in srgb, var(--accent-fill) 45%, transparent); }
+
+/* Runic site header (as on developers.runic.io): mark + wordmark, small grey section label, bottom hairline. */
+.site-header {
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--bg); border-bottom: 1px solid var(--line-soft);
+}
+.site-header-inner { max-width: var(--page-max); margin: 0 auto; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.site-header .brand { display: inline-flex; align-items: center; gap: 7px; }
+.site-header .brand svg { width: 26px; height: 26px; flex: none; }
+.site-header .wordmark { font-family: var(--display); font-weight: 700; font-size: 21px; letter-spacing: -0.03em; line-height: 1; color: var(--ink); }
+.site-header .section-label { font: 700 11px/1 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.site-header .spacer { flex: 1; }
+.site-header .repo { display: inline-flex; align-items: center; gap: 6px; font: 600 14px/1 var(--body); color: var(--muted); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
+.site-header .repo svg { width: 16px; height: 16px; fill: currentColor; }
+.site-header .repo:hover { color: var(--fg); }
+.site-header .repo:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.12; color: var(--ink); }
+h1 { font-size: clamp(30px, 5.4vw, 48px); font-weight: 700; letter-spacing: -0.04em; }
+h2 { font-size: clamp(22px, 3vw, 26px); font-weight: 700; letter-spacing: -0.02em; }
 p { margin: 0; max-width: 68ch; }
-a { color: var(--accent); }
-.eyebrow { font: 600 11px/1 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+a { color: var(--accent); text-underline-offset: 2px; }
+.eyebrow { font: 700 11px/1.2 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--label); }
+main > header .eyebrow { color: var(--accent); }
 .muted { color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); }
-code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-header, section { display: grid; gap: 16px; }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); color: var(--code-fg); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-soft); }
+pre code { background: none; border: 0; padding: 0; color: inherit; }
+pre { margin: 0; background: var(--pre-bg); color: var(--pre-fg); border: 1px solid var(--pre-line); border-radius: 12px; padding: 14px 16px; overflow-x: auto; font: 12.5px/1.6 var(--mono); tab-size: 2; }
+pre::-webkit-scrollbar { height: 8px; }
+pre::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 8px; }
 
-.before { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 8px; }
-.before ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+/* Buttons: secondary = white with neutral border (Runic outline button); pressed/primary = yellow fill, black text. */
+button {
+  font: 700 13px/1.2 var(--body); padding: 9px 14px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+button:hover { border-color: var(--hover-line); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+button[aria-pressed="true"]:hover { background: var(--accent-fill-hover); border-color: var(--accent-fill-hover); }
+.code button {
+  position: absolute; top: 8px; right: 8px; font: 600 12px/1.2 var(--body); padding: 5px 11px; border-radius: 6px;
+  background: var(--pre-btn); color: var(--pre-btn-fg); border: 1px solid var(--pre-line);
+}
+.code button:hover { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+.code button:focus-visible { outline-color: var(--accent-fill); }
+
+.chip { display: inline-block; font: 700 11px/1.5 var(--body); letter-spacing: 0.02em; padding: 2px 9px; border-radius: 999px; white-space: nowrap; color: var(--fg); background: color-mix(in srgb, var(--accent-fill) 30%, transparent); border: 1px solid color-mix(in srgb, var(--accent-fill) 55%, transparent); }
+
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line-soft); padding-top: 20px; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+main { max-width: var(--page-max); margin: 0 auto; padding-block: 48px 72px; display: grid; gap: 48px; }
+h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+main header, section { display: grid; gap: 16px; }
+
+.before { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent-fill); border-radius: 12px; padding: 20px 22px; display: grid; gap: 10px; box-shadow: var(--shadow); }
+.before ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 
 /* Index */
-.index { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-.index div { display: grid; gap: 6px; align-content: start; }
+.index { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.index div { display: grid; gap: 8px; align-content: start; background: var(--surface-2); border-radius: 12px; padding: 14px 16px; }
 .index ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.index a { text-decoration: none; color: var(--fg); font-size: 14px; display: block; padding: 2px 0; }
+.index a { text-decoration: none; color: var(--fg); font-size: 14px; display: block; padding: 3px 0; }
 .index a:hover, .index a:focus-visible { color: var(--accent); text-decoration: underline; }
 
 /* Filters */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 10px; z-index: 5; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 12px; z-index: 5; border-bottom: 1px solid var(--line-soft); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-button {
-  font: 500 13px var(--body); padding: 7px 12px; border-radius: 6px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
-}
-button:hover { border-color: var(--accent); }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+.filters button { border-radius: 999px; padding: 8px 15px; }
 
 /* Recipes */
 .recipes { display: grid; gap: 18px; }
-.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; scroll-margin-top: 70px; }
+.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; scroll-margin-top: 76px; box-shadow: var(--shadow); }
+.recipe:target { border-color: var(--accent-fill); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-fill) 35%, transparent); }
 .recipe.critical { border-left: 4px solid var(--critical); }
 .recipe .about { display: grid; gap: 10px; align-content: start; min-width: 0; }
 .recipe .story { font-size: 14.5px; }
 .meta { display: grid; gap: 6px; font-size: 13.5px; }
-.meta dt { font: 600 11px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.meta dt { font: 700 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--label); }
 .meta dd { margin: 0 0 4px; }
 .meta ul { margin: 0; padding-left: 18px; }
 .trig { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.chip { display: inline-block; font: 600 11.5px var(--body); padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent-fill) 30%, transparent); white-space: nowrap; }
-.chip.crit { background: color-mix(in srgb, var(--critical) 18%, transparent); }
+.chip.crit { background: color-mix(in srgb, var(--critical) 14%, transparent); border-color: color-mix(in srgb, var(--critical) 40%, transparent); }
 .code { position: relative; min-width: 0; }
-pre { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 40px 12px 12px; overflow-x: auto; font: 12.5px/1.55 var(--mono); }
-.code button { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 4px 10px; }
+.code pre { padding: 44px 16px 14px; }
 @media (max-width: 800px) { .recipe { grid-template-columns: 1fr; } }
-footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
 </style>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="brand"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M13.62 20.38 36.01 10.84A2.4 2.4 0 0 1 39.16 13.99L29.62 36.38A2.4 2.4 0 0 1 25.21 36.4L21.95 28.88A1.6 1.6 0 0 0 21.12 28.05L13.6 24.79A2.4 2.4 0 0 1 13.62 20.38Z" fill="#F5C518"/></svg><span class="wordmark">Runic</span></span>
+    <span class="section-label">For Home Assistant</span>
+    <span class="spacer"></span>
+    <a class="repo" href="https://github.com/martineo14/ha-runic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+  </div>
+</header>
 
 <main>
   <header>
-    <span class="eyebrow">Runic.io for Home Assistant · v0.5.0</span>
+    <span class="eyebrow">Runic.io for Home Assistant · v0.7.0</span>
     <h1>Runic automation cookbook</h1>
     <p class="muted">One real-life automation for every Runic alert, using three example vehicles: Truck 3, Van 12 and Car 2. Each one reads the details Runic sends with that alert, such as the speed, the battery voltage, the fuel drop or the days left before a service.</p>
   </header>
@@ -507,7 +593,7 @@ actions:
           <p class="story">The truck enters the warehouse point of interest you drew in the Runic app. The yard gate opens before the driver reaches it, and after sunset the yard lights come on too.</p>
           <dl class="meta">
             <dt>Trigger</dt><dd class="trig"><span class="chip">Entered a point of interest</span> <code>poi_enter</code></dd>
-            <dt>Uses</dt><dd><code>data.poi_id</code>: see it in the Last alert entity after one arrival</dd>
+            <dt>Uses</dt><dd><code>poi_name</code>: the POI's name in Runic, or a Home Assistant zone synced to Runic</dd>
             <dt>You'll need</dt><dd><ul><li>A motorised gate and yard lights in Home Assistant</li></ul></dd>
           </dl>
         </div>
@@ -518,7 +604,7 @@ triggers:
     device_id: TRUCK_3   # pick the vehicle in the editor
     type: poi_enter
 conditions:
-  - "{{ trigger.event.data.data.poi_id == 55 }}"   # your warehouse POI
+  - "{{ trigger.event.data.poi_name == 'Warehouse' }}"   # your POI's name
 actions:
   - action: cover.open_cover
     target:
@@ -540,7 +626,7 @@ actions:
           <p class="story">On a weekday evening, the van leaves the office point of interest. The heating goes up to 21 °C, and the family gets a “On the way home” message without you touching your phone.</p>
           <dl class="meta">
             <dt>Trigger</dt><dd class="trig"><span class="chip">Left a point of interest</span> <code>poi_exit</code></dd>
-            <dt>Uses</dt><dd><code>data.poi_id</code>, a time condition</dd>
+            <dt>Uses</dt><dd><code>poi_name</code>, a time condition</dd>
             <dt>You'll need</dt><dd><ul><li>A thermostat in Home Assistant</li><li>A notify group called <code>family</code></li></ul></dd>
           </dl>
         </div>
@@ -551,7 +637,7 @@ triggers:
     device_id: VAN_12   # pick the vehicle in the editor
     type: poi_exit
 conditions:
-  - "{{ trigger.event.data.data.poi_id == 61 }}"   # your office POI
+  - "{{ trigger.event.data.poi_name == 'Office' }}"   # your POI's name
   - condition: time
     after: "16:00:00"
     weekday: [mon, tue, wed, thu, fri]

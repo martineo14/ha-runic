@@ -58,6 +58,8 @@ Ogni veicolo è un dispositivo. La sua pagina in Impostazioni → Dispositivi e 
 | Oggi: distanza, guida, viaggi, sosta | `sensor.<veicolo>_distanza_oggi`, `_tempo_di_guida_oggi`, `_viaggi_oggi`, `_tempo_in_sosta_oggi` (ogni 15 minuti, ripartono da zero ogni giorno) |
 | Chilometri, ore motore | `sensor.<veicolo>_contachilometri`, `sensor.<veicolo>_ore_motore` |
 | Scadenza tagliando | `sensor.<veicolo>_prossimo_tagliando`, impostato dall'avviso di manutenzione di Runic, con l'intervento come attributo |
+| Dove si trova | `sensor.<veicolo>_punto_di_interesse`: il punto di interesse Runic in cui si trova, per nome, oppure *Fuori* |
+| Dal localizzatore, se collegati | quadro acceso, motore, immobilizzatore, porte (ogni porta come attributo), temperatura e umidità del vano di carico, carburante consumato; ingressi digitali (disattivati di default, attivali per ogni veicolo) |
 | Inoltre | velocità, in movimento, tensione batteria, livello carburante, ultimo avviso; segnale GSM (diagnostica, disattivato di default) |
 
 La pagina del dispositivo mostra anche la targa (come numero di serie), il firmware del localizzatore e un link
@@ -72,6 +74,19 @@ testuale, incolla il file e sostituisci `furgone_12` con il nome entità del tuo
 
 Gli id delle entità seguono la lingua di Home Assistant al momento in cui aggiungi l'integrazione: in italiano sono
 `sensor.<veicolo>_velocita`, `_stato`, `_distanza_oggi`…; in inglese `_speed`, `_status`, `_distance_today`….
+
+## Punti di interesse e zone
+
+Gli avvisi di geofence riportano il **nome** del punto di interesse: usa `{{ trigger.event.data.poi_name }}` nei
+messaggi e nelle condizioni, ad esempio `{{ trigger.event.data.poi_name == 'Magazzino' }}`, invece di un id numerico.
+
+**Sincronizza le zone di Home Assistant con Runic** (Runic.io → Configura): ogni zona di Home Assistant, tranne
+quelle passive, diventa un punto di interesse Runic con lo stesso nome, posizione e raggio (Runic accetta da 50 m
+a 50 km). Spostando, ridimensionando, rinominando o eliminando una zona, Runic si aggiorna entro 30 secondi;
+l'azione `runic.sync_zones` sincronizza subito. Se nella stessa schermata aggiungi un'email, crea anche le regole
+di avviso di entrata e uscita per tutti i veicoli, perché Runic richiede un'email per ogni regola.
+Modifica solo i punti di interesse che ha creato (il loro indirizzo è *Home Assistant zone zone.…*);
+quelli disegnati nell'app Runic non vengono toccati.
 
 ## Come funziona
 

@@ -98,7 +98,14 @@ STATUS = {
 }
 
 
+POIS = {"result": "SUCCESS", "pois": [
+    {"poi_id": 55, "name": "Warehouse", "latitude": 45.0, "longitude": 12.0, "radius_m": 300},
+    {"poi_id": 61, "name": "Office", "latitude": 45.5, "longitude": 12.5, "radius_m": 200},
+]}
+
+
 def mock_extras(aioclient_mock, status=STATUS):
+    aioclient_mock.get(f"{API_BASE}/pois", json=POIS)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806/status", json=status)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806/reports", json={"paths": []})
     aioclient_mock.get(f"{API_BASE}/vehicles/58806/tracks", json={"tracks": [], "stops": []})
@@ -257,6 +264,7 @@ async def test_vehicle_page_sensors(hass: HomeAssistant, aioclient_mock, hass_cl
     aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
     aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
     aioclient_mock.get(f"{API_BASE}/vehicles/58806/status", json=STATUS)
+    aioclient_mock.get(f"{API_BASE}/pois", json=POIS)
     aioclient_mock.get(
         f"{API_BASE}/vehicles/58806/reports",
         json={"paths": [{"vehicle_id": "58806", "date": today, "distance": "6.04", "driving_time": "900", "idle_time": "30"}]},

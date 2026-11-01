@@ -88,6 +88,21 @@
       },
       "next_service": {
         "name": "Next service"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "fuel_used": {
+        "name": "Fuel used"
+      },
+      "poi": {
+        "name": "Point of interest",
+        "state": {
+          "away": "Away"
+        }
       }
     },
     "event": {
@@ -123,6 +138,41 @@
     "binary_sensor": {
       "stream": {
         "name": "Alert stream"
+      },
+      "ignition": {
+        "name": "Ignition"
+      },
+      "engine": {
+        "name": "Engine"
+      },
+      "immobilizer": {
+        "name": "Immobilizer"
+      },
+      "doors": {
+        "name": "Doors",
+        "state_attributes": {
+          "front_left": {
+            "name": "Front left"
+          },
+          "front_right": {
+            "name": "Front right"
+          },
+          "rear_left": {
+            "name": "Rear left"
+          },
+          "rear_right": {
+            "name": "Rear right"
+          },
+          "hood": {
+            "name": "Hood"
+          },
+          "trunk": {
+            "name": "Trunk"
+          }
+        }
+      },
+      "digital_input": {
+        "name": "Digital input {number}"
       }
     }
   },
@@ -155,11 +205,27 @@
     "step": {
       "init": {
         "title": "Runic.io options",
-        "description": "The real-time stream receives alerts without a public URL. It needs a “Real-time stream” endpoint in the Runic portal. A webhook set up earlier keeps working alongside it.",
+        "description": "The real-time stream receives alerts without a public URL; it needs a “Real-time stream” endpoint in the Runic portal. Zone sync copies your Home Assistant zones (not passive ones) to Runic as points of interest, so Runic raises enter and leave alerts for them. It only changes the POIs it created. With an email, it also creates the enter and leave alert rules for every vehicle (Runic requires an email for each rule).",
         "data": {
-          "stream": "Use the real-time alert stream"
+          "stream": "Use the real-time alert stream",
+          "sync_zones": "Sync Home Assistant zones to Runic points of interest",
+          "zone_alert_email": "Email for Runic's notifications (creates enter and leave alert rules)"
         }
       }
+    },
+    "error": {
+      "invalid_email": "Enter a valid email address, or leave it empty."
+    }
+  },
+  "exceptions": {
+    "zone_sync_off": {
+      "message": "Zone sync is off. Turn it on under Runic.io → Configure."
+    }
+  },
+  "services": {
+    "sync_zones": {
+      "name": "Sync zones to Runic",
+      "description": "Copies Home Assistant zones to Runic points of interest now, instead of waiting for the next change."
     }
   }
 }

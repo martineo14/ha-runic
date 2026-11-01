@@ -17,6 +17,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
+    UnitOfTemperature,
     UnitOfElectricPotential,
     UnitOfLength,
     UnitOfSpeed,
@@ -38,10 +39,13 @@ from .const import (
     MEASURE_ENGINE_HOURS_CAN,
     MEASURE_FUEL_LITERS_OEM,
     MEASURE_FUEL_PERCENT_CAN,
+    MEASURE_FUEL_USED_CAN,
     MEASURE_GSM_SIGNAL,
+    MEASURE_HUMIDITY,
+    MEASURE_TEMPERATURE,
     MEASURE_VEHICLE_STATUS,
 )
-from .coordinator import RunicTodayCoordinator, is_moving
+from .coordinator import RunicTodayCoordinator, is_moving, poi_at
 from .entity import RunicVehicleEntity
 
 
@@ -141,6 +145,34 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
         exists_fn=lambda v: _measure(MEASURE_FUEL_LITERS_OEM)(v) is not None,
     ),
     RunicSensorDescription(
+        key="temperature",
+        translation_key="temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        suggested_display_precision=1,
+        value_fn=_measure(MEASURE_TEMPERATURE),
+        exists_fn=lambda v: _measure(MEASURE_TEMPERATURE)(v) is not None,
+    ),
+    RunicSensorDescription(
+        key="humidity",
+        translation_key="humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        value_fn=_measure(MEASURE_HUMIDITY),
+        exists_fn=lambda v: _measure(MEASURE_HUMIDITY)(v) is not None,
+    ),
+    RunicSensorDescription(
+        key="fuel_used",
+        translation_key="fuel_used",
+        device_class=SensorDeviceClass.VOLUME,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfVolume.LITERS,
+        value_fn=_measure(MEASURE_FUEL_USED_CAN),
+        exists_fn=lambda v: _measure(MEASURE_FUEL_USED_CAN)(v) is not None,
+    ),
+    RunicSensorDescription(
         key="gsm_signal",
         translation_key="gsm_signal",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -200,6 +232,7 @@ async def async_setup_entry(
         ]
         entities += [RunicTodaySensor(today, vid, d) for d in TODAY_SENSORS]
         entities.append(RunicNextService(coordinator, vid))
+        entities.append(RunicPoiSensor(coordinator, vid))
     async_add_entities(entities)
 
 
@@ -272,3 +305,27 @@ class RunicNextService(RunicVehicleEntity, RestoreSensor):
         self._attr_native_value = dt_util.now().date() + timedelta(days=days)
         self._attr_extra_state_attributes = {"task": details.get("task")}
         self.async_write_ha_state()
+
+
+class RunicPoiSensor(RunicVehicleEntity, SensorEntity):
+    """Which Runic point of interest the vehicle is in, by name, or "away"."""
+
+    _attr_translation_key = "poi"
+    _attr_device_class = SensorDeviceClass.ENUM
+
+    def __init__(self, coordinator, vehicle_id: int) -> None:
+        super().__init__(coordinator, vehicle_id, "poi")
+
+    @property
+    def options(self) -> list[str]:
+        return ["away", *sorted({p["name"] for p in self.coordinator.pois.values()})]
+
+    @property
+    def native_value(self) -> str:
+        poi = poi_at(self.vehicle, self.coordinator.pois)
+        return poi["name"] if poi else "away"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        poi = poi_at(self.vehicle, self.coordinator.pois)
+        return {"poi_id": poi["poi_id"] if poi else None}

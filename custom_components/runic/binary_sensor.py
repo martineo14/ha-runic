@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
@@ -16,7 +19,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import RunicConfigEntry
-from .const import DOMAIN, SIGNAL_STREAM_STATE
+from .const import (
+    DOMAIN,
+    DOOR_BITS,
+    MEASURE_DIGITAL_INPUTS,
+    MEASURE_DOORS,
+    MEASURE_ENGINE,
+    MEASURE_IGNITION,
+    MEASURE_IMMOBILIZER,
+    SIGNAL_STREAM_STATE,
+)
 from .coordinator import is_moving
 from .entity import RunicVehicleEntity
 
@@ -26,6 +38,12 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data.coordinator
     async_add_entities(RunicMoving(coordinator, vid) for vid in coordinator.data)
+    async_add_entities(
+        RunicMeasureBinary(coordinator, vid, d)
+        for vid, vehicle in coordinator.data.items()
+        for d in MEASURE_BINARY_SENSORS
+        if _measure_value(vehicle, d.measure_id) is not None
+    )
     if entry.runtime_data.stream:
         async_add_entities([RunicStreamConnected(entry)])
 
@@ -86,3 +104,79 @@ class RunicStreamConnected(BinarySensorEntity):
     @callback
     def _on_state(self, connected: bool) -> None:
         self.async_write_ha_state()
+
+
+def _measure_value(vehicle: dict[str, Any], measure_id: int) -> Any:
+    return (vehicle.get("measures") or {}).get(measure_id)
+
+
+@dataclass(frozen=True, kw_only=True)
+class RunicBinaryDescription(BinarySensorEntityDescription):
+    measure_id: int
+    is_on_fn: Callable[[Any], bool] = lambda value: int(value) == 1
+    attributes_fn: Callable[[Any], dict[str, Any]] | None = None
+
+
+def _doors(value: Any) -> dict[str, Any]:
+    mask = int(value)
+    return {door: bool(mask & bit) for door, bit in DOOR_BITS.items()}
+
+
+# Created only for the measures a vehicle reports (they depend on the tracker and its wiring).
+MEASURE_BINARY_SENSORS: tuple[RunicBinaryDescription, ...] = (
+    RunicBinaryDescription(key="ignition", translation_key="ignition", measure_id=MEASURE_IGNITION),
+    RunicBinaryDescription(
+        key="engine", translation_key="engine", device_class=BinarySensorDeviceClass.RUNNING, measure_id=MEASURE_ENGINE
+    ),
+    RunicBinaryDescription(key="immobilizer", translation_key="immobilizer", measure_id=MEASURE_IMMOBILIZER),
+    RunicBinaryDescription(
+        key="doors",
+        translation_key="doors",
+        device_class=BinarySensorDeviceClass.DOOR,
+        measure_id=MEASURE_DOORS,
+        is_on_fn=lambda value: int(value) & sum(DOOR_BITS.values()) != 0,
+        attributes_fn=_doors,
+    ),
+    *(
+        RunicBinaryDescription(
+            key=f"digital_input_{n}",
+            translation_key="digital_input",
+            translation_placeholders={"number": str(n)},
+            measure_id=measure_id,
+            entity_registry_enabled_default=False,  # inputs are often unwired: opt in per vehicle
+        )
+        for n, measure_id in enumerate(MEASURE_DIGITAL_INPUTS, start=1)
+    ),
+)
+
+
+class RunicMeasureBinary(RunicVehicleEntity, BinarySensorEntity):
+    """An on/off measure reported by the tracker: ignition, engine, doors…"""
+
+    entity_description: RunicBinaryDescription
+
+    def __init__(self, coordinator, vehicle_id: int, description: RunicBinaryDescription) -> None:
+        super().__init__(coordinator, vehicle_id, description.key)
+        self.entity_description = description
+
+    @property
+    def _value(self) -> Any:
+        return _measure_value(self.vehicle, self.entity_description.measure_id)
+
+    @property
+    def is_on(self) -> bool | None:
+        value = self._value
+        try:
+            return None if value is None else self.entity_description.is_on_fn(value)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        fn, value = self.entity_description.attributes_fn, self._value
+        if fn is None or value is None:
+            return None
+        try:
+            return fn(value)
+        except (TypeError, ValueError):
+            return None
