@@ -109,8 +109,19 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def summarize_tracks(tracks: dict[str, Any]) -> tuple[int, int]:
-    """Number of trips and seconds stopped in a /tracks answer (its shape varies, per Runic's docs)."""
+def summarize_tracks(tracks: dict[str, Any] | list[Any]) -> tuple[int, int]:
+    """Number of trips and seconds stopped in a /tracks answer (its shape varies, per Runic's docs).
+
+    Usually {"tracks": [...], "stops": [...]}, but the live API can also answer with a bare list:
+    either that object wrapped in a list, or the segments themselves (stops marked by a "type").
+    """
+    if isinstance(tracks, list):
+        if len(tracks) == 1 and isinstance(tracks[0], dict) and ({"tracks", "stops"} & tracks[0].keys()):
+            return summarize_tracks(tracks[0])
+        segments = [s for s in tracks if isinstance(s, dict)]
+        stops = [s for s in segments if str(s.get("type", "")).lower() in ("stop", "stopped", "parking")]
+        moves = [s for s in segments if s not in stops]
+        return summarize_tracks({"tracks": moves, "stops": stops})
     moves = tracks.get("tracks")
     trips = len(moves) if isinstance(moves, list) else (1 if moves else 0)
     stopped = sum(
@@ -155,7 +166,7 @@ class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             else:
                 try:
                     today["trips"], today["stopped_s"] = summarize_tracks(track)
-                except (TypeError, ValueError, KeyError) as err:
+                except (TypeError, ValueError, KeyError, AttributeError) as err:
                     _LOGGER.debug("Unexpected tracks for vehicle %s: %s", vid, err)
             result[vid] = today
         if ids and all(isinstance(r, BaseException) for r in (*reports, *tracks)):

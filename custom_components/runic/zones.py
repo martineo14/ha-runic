@@ -34,6 +34,38 @@ def desired_pois(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
     return wanted
 
 
+def rule_settings(rule: dict[str, Any]) -> dict[str, Any]:
+    """An alert rule's settings as a dict.
+
+    Runic documents them as an object, but the live API can return a list: either of objects to merge,
+    or of {key|name, value} pairs. Anything else counts as no settings, so one odd rule never stops a sync.
+    """
+    raw = rule.get("settings")
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, list):
+        return {}
+    merged: dict[str, Any] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        key = item.get("key", item.get("name"))
+        if key is not None and "value" in item:
+            merged[str(key)] = item["value"]
+        else:
+            merged.update(item)
+    if not merged and raw:
+        _LOGGER.debug("Unrecognised settings on alert rule %s: %r", rule.get("alert_id"), raw)
+    return merged
+
+
+def _rule_poi_id(rule: dict[str, Any]) -> int | None:
+    try:
+        return int(rule_settings(rule)["poi_id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _same(poi: dict[str, Any], want: dict[str, Any]) -> bool:
     return (
         poi.get("name") == want["name"]
@@ -94,7 +126,8 @@ class ZoneSync:
                 if poi is None or not _same(poi, want):
                     poi_id = await self._client.create_poi(**want)
                     counts["created"] += poi is None
-                    rules = [r for r in rules if r.get("settings", {}).get("poi_id") != (poi or {}).get("poi_id")]
+                    if poi is not None:  # the replaced POI's rules were deleted with it
+                        rules = [r for r in rules if _rule_poi_id(r) != int(poi["poi_id"])]
                 else:
                     poi_id = int(poi["poi_id"])
                 counts["rules"] += await self._ensure_rules(poi_id, rules)
@@ -110,7 +143,7 @@ class ZoneSync:
     async def _remove(self, poi: dict[str, Any], rules: list[dict[str, Any]]) -> None:
         poi_id = int(poi["poi_id"])
         for rule in rules:
-            if rule.get("type") == "poi_area" and int(rule.get("settings", {}).get("poi_id", -1)) == poi_id:
+            if rule.get("type") == "poi_area" and _rule_poi_id(rule) == poi_id:
                 await self._client.delete_alert_rule(int(rule["alert_id"]))
         await self._client.delete_poi(poi_id)
 
@@ -119,9 +152,9 @@ class ZoneSync:
         if not self._email:
             return 0
         existing = {
-            rule.get("settings", {}).get("direction")
+            rule_settings(rule).get("direction")
             for rule in rules
-            if rule.get("type") == "poi_area" and int(rule.get("settings", {}).get("poi_id", -1)) == poi_id
+            if rule.get("type") == "poi_area" and _rule_poi_id(rule) == poi_id
         }
         made = 0
         for direction in ("in", "out"):
