@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import html
 import json
 import logging
@@ -32,6 +31,7 @@ from .const import (
     EVENT_RUNIC,
 )
 from .coordinator import RunicCoordinator, RunicTodayCoordinator
+from .ledger import AlertLedger
 from .signature import signature_problem
 from .stream import RunicStream, StreamAuthError, uses_stream
 from .zones import ZoneSync
@@ -44,10 +44,10 @@ PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT, Pl
 class RunicData:
     coordinator: RunicCoordinator
     today: RunicTodayCoordinator
+    # Alerts already handled, on disk: delivery is at-least-once, and stream and webhook can both be on.
+    ledger: AlertLedger
     stream: RunicStream | None = None
     zone_sync: ZoneSync | None = None
-    # Delivery is at-least-once, and the stream and webhooks can both be on: drop repeats by alert id.
-    seen_ids: deque[str] = field(default_factory=lambda: deque(maxlen=500))
 
 
 type RunicConfigEntry = ConfigEntry[RunicData]
@@ -81,7 +81,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> boo
     await coordinator.async_config_entry_first_refresh()
     today = RunicTodayCoordinator(hass, entry, client, coordinator)
     await today.async_refresh()  # optional extras: a failure here must not block setup
-    entry.runtime_data = RunicData(coordinator, today)
+    ledger = AlertLedger(hass, entry.entry_id)
+    await ledger.async_load()
+    entry.runtime_data = RunicData(coordinator, today, ledger)
 
     if CONF_WEBHOOK_ID in entry.data:
         webhook.async_register(
@@ -94,7 +96,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> boo
             entry.entry_id,
             session,
             token,
-            on_alert=lambda alert: async_process_alert(hass, entry, alert, "stream"),
+            ledger,
+            on_alert=lambda alert, seq: async_process_alert(hass, entry, alert, "stream", seq),
             on_gap=coordinator.async_request_refresh,
         )
 
@@ -134,21 +137,24 @@ async def _options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> bool:
     if CONF_WEBHOOK_ID in entry.data:
         webhook.async_unregister(hass, entry.data[CONF_WEBHOOK_ID])
-    if entry.runtime_data.stream:
-        await entry.runtime_data.stream.async_save_now()
+    await entry.runtime_data.ledger.async_save_now()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 @callback
 def async_process_alert(
-    hass: HomeAssistant, entry: RunicConfigEntry, alert: dict[str, Any], source: str
+    hass: HomeAssistant,
+    entry: RunicConfigEntry,
+    alert: dict[str, Any],
+    source: str,
+    seq: int | None = None,
 ) -> None:
     """Handle one Runic alert, whichever way it arrived."""
     _LOGGER.debug("Runic alert from the %s: %s", source, alert)
     data = entry.runtime_data
-    if alert["id"] in data.seen_ids:
+    if data.ledger.seen(alert["id"]):
+        data.ledger.record(None, seq)  # e.g. the webhook copy came first: still move the stream on
         return
-    data.seen_ids.append(alert["id"])
 
     vehicle = alert.get("vehicle") or {}
     details = alert.get("data") or {}
@@ -185,6 +191,8 @@ def async_process_alert(
         },
     )
     data.coordinator.apply_alert(alert)
+    # After handling, so a crash in between repeats the alert rather than losing it.
+    data.ledger.record(alert["id"], seq)
 
 
 def _make_handler(entry: RunicConfigEntry):
