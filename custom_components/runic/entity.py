@@ -8,12 +8,14 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MEASURE_FIRMWARE, PORTAL_URL
+from .const import DOMAIN, PORTAL_URL, SIGNAL_VEHICLE_REMOVED
 from .coordinator import RunicCoordinator
+from .devices import device_details
 
 
 @callback
@@ -28,22 +30,29 @@ def async_track_vehicles(
     A vehicle added to the Runic account, or a tracker that starts sending a new value, gets its
     entities at the next update without reloading the integration.
     """
-    added: set[str] = set()
+    added: dict[int, set[str]] = {}
 
     @callback
     def _add_new() -> None:
-        new = [
-            entity
-            for vid, vehicle in (coordinator.data or {}).items()
-            for entity in entities_for(vid, vehicle)
-            if entity.unique_id not in added
-        ]
+        new = []
+        for vid, vehicle in (coordinator.data or {}).items():
+            known = added.setdefault(vid, set())
+            for entity in entities_for(vid, vehicle):
+                if entity.unique_id not in known:
+                    known.add(entity.unique_id)
+                    new.append(entity)
         if new:
-            added.update(e.unique_id for e in new)
             async_add_entities(new)
+
+    @callback
+    def _forget(vid: int) -> None:
+        added.pop(vid, None)  # if Runic lists the vehicle again, it gets fresh entities
 
     _add_new()
     entry.async_on_unload(coordinator.async_add_listener(_add_new))
+    entry.async_on_unload(
+        async_dispatcher_connect(coordinator.hass, SIGNAL_VEHICLE_REMOVED.format(entry.entry_id), _forget)
+    )
 
 
 class RunicVehicleEntity(CoordinatorEntity[RunicCoordinator]):
@@ -55,16 +64,12 @@ class RunicVehicleEntity(CoordinatorEntity[RunicCoordinator]):
         super().__init__(coordinator)
         self.vehicle_id = vehicle_id
         self._attr_unique_id = f"{vehicle_id}_{key}"
-        vehicle = self.vehicle
-        firmware = (vehicle.get("measures") or {}).get(MEASURE_FIRMWARE)
+        # Later changes in Runic reach the device through DeviceSync.
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(vehicle_id))},
-            name=vehicle["name"],
             manufacturer="Runic.io",
-            model=vehicle.get("description") or None,
-            serial_number=vehicle.get("plate") or None,  # shown on the device page, like Runic's plate badge
-            sw_version=str(firmware) if firmware else None,
             configuration_url=PORTAL_URL,
+            **device_details(self.vehicle),
         )
 
     @property

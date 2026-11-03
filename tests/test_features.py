@@ -279,3 +279,95 @@ async def test_vehicle_added_later_appears_without_reload(hass: HomeAssistant, a
     assert dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "70001")}).serial_number == "XY987ZT"
     # No duplicates of Van 12's existing entities.
     assert len(hass.states.async_entity_ids("device_tracker")) == 2
+
+
+def _mock_round(aioclient_mock, vehicles, detail_overrides=None, fail=False):
+    """Register the answers for one 5-minute update."""
+    from .test_runic import STATUS
+
+    aioclient_mock.clear_requests()
+    if fail:
+        aioclient_mock.get(f"{API_BASE}/vehicles", status=500)
+        return
+    aioclient_mock.get(f"{API_BASE}/vehicles", json={"vehicles": vehicles})
+    for v in vehicles:
+        body = {"vehicle": {**v, "plate": "AB123CD", "speed": 0, **(detail_overrides or {})}}
+        aioclient_mock.get(f"{API_BASE}/vehicles/{v['id']}", json=body)
+        aioclient_mock.get(f"{API_BASE}/vehicles/{v['id']}/status", json=STATUS)
+        aioclient_mock.get(f"{API_BASE}/vehicles/{v['id']}/reports", json={"paths": []})
+        aioclient_mock.get(f"{API_BASE}/vehicles/{v['id']}/tracks", json={"tracks": [], "stops": []})
+    aioclient_mock.get(f"{API_BASE}/pois", json=POIS)
+
+
+async def _update(hass):
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    await entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_vehicle_changes_in_runic_reach_the_device(hass: HomeAssistant, aioclient_mock):
+    from homeassistant.helpers import device_registry as dr
+
+    await setup(hass, aioclient_mock, STATUS)
+    registry = dr.async_get(hass)
+    device = registry.async_get_device(identifiers={(DOMAIN, "58806")})
+    assert device.name == "Van 12"
+
+    renamed = [{**VEHICLES["vehicles"][0], "name": "Van 12 Bianco"}]
+    _mock_round(aioclient_mock, renamed, {"plate": "ZZ999ZZ", "description": "Fiat Ducato"})
+    await _update(hass)
+
+    device = registry.async_get_device(identifiers={(DOMAIN, "58806")})
+    assert (device.name, device.serial_number, device.model) == ("Van 12 Bianco", "ZZ999ZZ", "Fiat Ducato")
+    # Entity names follow the device; entity ids stay, so automations keep working.
+    assert hass.states.get("sensor.van_12_speed").attributes["friendly_name"] == "Van 12 Bianco Speed"
+
+    # A name set by the user in Home Assistant is kept.
+    registry.async_update_device(device.id, name_by_user="My van")
+    _mock_round(aioclient_mock, [{**VEHICLES["vehicles"][0], "name": "Van 12 Rosso"}])
+    await _update(hass)
+    device = registry.async_get_device(identifiers={(DOMAIN, "58806")})
+    assert device.name_by_user == "My van" and device.name == "Van 12 Rosso"
+
+
+async def test_vehicle_removed_in_runic_is_removed_after_two_updates(hass: HomeAssistant, aioclient_mock):
+    from homeassistant.helpers import device_registry as dr
+
+    from custom_components.runic import async_remove_config_entry_device
+
+    truck = {"id": 70001, "name": "Truck 3", "latitude": 44.0, "longitude": 11.0, "timestamp": 1785879671, "status": "STOP"}
+    await setup(hass, aioclient_mock, STATUS)
+    _mock_round(aioclient_mock, [*VEHICLES["vehicles"], truck])
+    entry = await _update(hass)
+    registry = dr.async_get(hass)
+    assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is not None
+
+    # Removed in Runic. One update: still there, unavailable, and a failed update doesn't count.
+    _mock_round(aioclient_mock, VEHICLES["vehicles"])
+    await _update(hass)
+    assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is not None
+    assert hass.states.get("device_tracker.truck_3").state == "unavailable"
+    _mock_round(aioclient_mock, [], fail=True)
+    await _update(hass)
+    assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is not None
+
+    # The Delete button is allowed for it now, but not for a vehicle Runic still has.
+    gone = registry.async_get_device(identifiers={(DOMAIN, "70001")})
+    active = registry.async_get_device(identifiers={(DOMAIN, "58806")})
+    assert await async_remove_config_entry_device(hass, entry, gone) is True
+    assert await async_remove_config_entry_device(hass, entry, active) is False
+
+    # Second successful update without it: device and entities removed.
+    _mock_round(aioclient_mock, VEHICLES["vehicles"])
+    await _update(hass)
+    assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is None
+    assert hass.states.get("device_tracker.truck_3") is None
+    assert er.async_get(hass).async_get("sensor.truck_3_status") is None
+    assert hass.states.get("device_tracker.van_12") is not None   # the others are untouched
+
+    # It comes back: it gets its device and entities again.
+    _mock_round(aioclient_mock, [*VEHICLES["vehicles"], truck])
+    await _update(hass)
+    assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is not None
+    assert hass.states.get("device_tracker.truck_3") is not None

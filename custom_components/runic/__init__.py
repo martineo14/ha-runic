@@ -31,6 +31,7 @@ from .const import (
     EVENT_RUNIC,
 )
 from .coordinator import RunicCoordinator, RunicTodayCoordinator
+from .devices import DeviceSync, vehicle_id_of
 from .ledger import AlertLedger
 from .signature import signature_problem
 from .stream import RunicStream, StreamAuthError, uses_stream
@@ -118,8 +119,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: RunicConfigEntry) -> boo
 
         entry.async_on_unload(async_at_started(hass, _sync_when_started))
 
+    device_sync = DeviceSync(hass, entry, coordinator)
+    entry.async_on_unload(coordinator.async_add_listener(device_sync.async_update))
+
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: RunicConfigEntry, device: dr.DeviceEntry
+) -> bool:
+    """Allow "Delete" on a vehicle's device only once Runic no longer has that vehicle."""
+    vid = vehicle_id_of(device)
+    if vid is None:
+        return False  # the account device belongs to the integration itself
+    return int(vid) not in (entry.runtime_data.coordinator.data or {})
 
 
 async def _run_stream(hass: HomeAssistant, entry: RunicConfigEntry, stream: RunicStream) -> None:

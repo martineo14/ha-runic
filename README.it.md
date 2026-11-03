@@ -66,7 +66,10 @@ La pagina del dispositivo mostra anche la targa (come numero di serie), il firmw
 **Visita** al portale Runic. I sensori compaiono solo per i valori che il veicolo invia: un'auto senza dati
 carburante CAN non ha il sensore del carburante.
 I veicoli aggiunti al tuo account Runic, e i valori che un localizzatore inizia a inviare in seguito, compaiono
-al prossimo aggiornamento (entro 5 minuti), senza ricaricare l'integrazione. Le scadenze di assicurazione e revisione non sono nell'API di Runic,
+al prossimo aggiornamento (entro 5 minuti), senza ricaricare l'integrazione. Se rinomini un veicolo o ne cambi la targa
+in Runic, si aggiorna anche il dispositivo (un nome che hai impostato tu in Home Assistant resta). Un veicolo rimosso da
+Runic viene rimosso da Home Assistant dopo due aggiornamenti di fila senza di lui (circa 10 minuti), così un errore
+momentaneo non cancella nulla; puoi anche eliminarlo subito dalla pagina del dispositivo. Le scadenze di assicurazione e revisione non sono nell'API di Runic,
 quindi non si possono mostrare.
 
 **Una plancia in stile Runic:** [`docs/vehicle-dashboard-it.yaml`](docs/vehicle-dashboard-it.yaml) ricrea la pagina

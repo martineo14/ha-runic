@@ -24,6 +24,7 @@ STREAM_HELLO_TIMEOUT = 30
 STREAM_BACKOFF_MAX = 300
 STREAM_STABLE_AFTER = 60
 SIGNAL_STREAM_STATE = f"{DOMAIN}_stream_state_{{}}"
+SIGNAL_VEHICLE_REMOVED = f"{DOMAIN}_vehicle_removed_{{}}"
 
 # Today's trips and stops: the tracks are large and change slowly.
 TODAY_SCAN_INTERVAL = timedelta(minutes=15)
