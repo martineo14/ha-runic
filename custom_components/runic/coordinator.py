@@ -46,6 +46,8 @@ class RunicCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
         self.client = client
         # Runic points of interest by id, for names in alerts and the "Point of interest" sensor.
         self.pois: dict[int, dict[str, Any]] = {}
+        # Odometer km of the next service, per vehicle, from the "Service at" number entities.
+        self.service_targets: dict[int, float] = {}
 
     async def _async_update_data(self) -> dict[int, dict[str, Any]]:
         try:
@@ -109,27 +111,50 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def summarize_tracks(tracks: dict[str, Any] | list[Any]) -> tuple[int, int]:
-    """Number of trips and seconds stopped in a /tracks answer (its shape varies, per Runic's docs).
+def split_tracks(tracks: dict[str, Any] | list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The trips and the stops in a /tracks answer (its shape varies, per Runic's docs).
 
     Usually {"tracks": [...], "stops": [...]}, but the live API can also answer with a bare list:
     either that object wrapped in a list, or the segments themselves (stops marked by a "type").
+    "tracks" itself may be a single trip object instead of a list.
     """
     if isinstance(tracks, list):
         if len(tracks) == 1 and isinstance(tracks[0], dict) and ({"tracks", "stops"} & tracks[0].keys()):
-            return summarize_tracks(tracks[0])
+            return split_tracks(tracks[0])
         segments = [s for s in tracks if isinstance(s, dict)]
         stops = [s for s in segments if str(s.get("type", "")).lower() in ("stop", "stopped", "parking")]
-        moves = [s for s in segments if s not in stops]
-        return summarize_tracks({"tracks": moves, "stops": stops})
+        return [s for s in segments if s not in stops], stops
     moves = tracks.get("tracks")
-    trips = len(moves) if isinstance(moves, list) else (1 if moves else 0)
+    if isinstance(moves, dict):
+        moves = [moves] if moves else []
+    return [m for m in moves or [] if isinstance(m, dict)], [s for s in tracks.get("stops") or [] if isinstance(s, dict)]
+
+
+def summarize_tracks(tracks: dict[str, Any] | list[Any]) -> tuple[int, int]:
+    """Number of trips and seconds stopped in a /tracks answer."""
+    moves, stops = split_tracks(tracks)
     stopped = sum(
         max(0, int(stop["to_time"]) - int(stop["from_time"]))
-        for stop in tracks.get("stops") or []
+        for stop in stops
         if stop.get("from_time") is not None and stop.get("to_time") is not None
     )
-    return trips, stopped
+    return len(moves), stopped
+
+
+def last_trip(tracks: dict[str, Any] | list[Any]) -> dict[str, Any] | None:
+    """The most recent trip: start, end, km and top speed."""
+    moves = [m for m in split_tracks(tracks)[0] if m.get("from_time") is not None]
+    if not moves:
+        return None
+    trip = max(moves, key=lambda m: int(m.get("to_time") or m["from_time"]))
+    start, end = int(trip["from_time"]), int(trip.get("to_time") or trip["from_time"])
+    return {
+        "start": start,
+        "end": end,
+        "distance_km": _number(trip.get("distance")),
+        "duration_s": max(0, end - start),
+        "max_speed": _number(trip.get("max_speed")),
+    }
 
 
 class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
@@ -141,6 +166,8 @@ class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
         )
         self.client = client
         self.vehicles = vehicles
+        # The last trip stays known after midnight, until the vehicle drives again.
+        self._last_trips: dict[int, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[int, dict[str, Any]]:
         day = dt_util.now().date().isoformat()  # Runic reads dates in the account's timezone
@@ -161,13 +188,17 @@ class RunicTodayCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
                 today["driving_s"] = int(_number(report.get("driving_time")) or 0)
                 today["idle_s"] = int(_number(report.get("idle_time")) or 0)
                 today["max_speed"] = _number(report.get("max_speed"))
+                today["avg_fuel"] = _number(report.get("avg_fuel"))
             if isinstance(track, BaseException):
                 _LOGGER.debug("No tracks today for vehicle %s: %s", vid, track)
             else:
                 try:
                     today["trips"], today["stopped_s"] = summarize_tracks(track)
+                    if trip := last_trip(track):
+                        self._last_trips[vid] = trip
                 except (TypeError, ValueError, KeyError, AttributeError) as err:
                     _LOGGER.debug("Unexpected tracks for vehicle %s: %s", vid, err)
+            today["last_trip"] = self._last_trips.get(vid)
             result[vid] = today
         if ids and all(isinstance(r, BaseException) for r in (*reports, *tracks)):
             raise UpdateFailed("Runic returned no reports or tracks")

@@ -1,0 +1,148 @@
+# Every Runic vehicle on one page, using only Home Assistant's built-in cards.
+# Settings → Dashboards → Add dashboard → open it → ⋮ → Edit dashboard → ⋮ → Raw configuration editor → paste.
+# One section per vehicle: copy a section for each of yours and replace the entity names
+# (van_12, truck_3, car_2) with your vehicles' (e.g. mercedes_glk). Add them to the map too.
+views:
+  - title: Fleet
+    path: fleet
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: heading
+            heading: Fleet
+            heading_style: title
+            badges:
+              - type: entity
+                entity: binary_sensor.runic_io_alert_stream
+          - type: map
+            entities:
+              - device_tracker.van_12
+              - device_tracker.truck_3
+              - device_tracker.car_2
+            hours_to_show: 24          # today's routes
+            grid_options:
+              columns: full
+              rows: 8
+      - type: grid
+        cards:
+          - type: heading
+            heading: Van 12
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.van_12
+            badges:
+              - type: entity
+                entity: sensor.van_12_status
+              - type: entity
+                entity: sensor.van_12_last_seen
+          - type: tile
+            entity: sensor.van_12_distance_today
+          - type: tile
+            entity: sensor.van_12_trips_today
+          - type: tile
+            entity: sensor.van_12_point_of_interest
+          - type: tile
+            entity: event.van_12_last_alert
+          # Shown only when something needs attention.
+          - type: tile
+            entity: binary_sensor.van_12_engine_fault
+            visibility:
+              - condition: state
+                entity: binary_sensor.van_12_engine_fault
+                state: "on"
+          - type: tile
+            entity: binary_sensor.van_12_maintenance_due
+            visibility:
+              - condition: state
+                entity: binary_sensor.van_12_maintenance_due
+                state: "on"
+          - type: tile
+            entity: sensor.van_12_km_to_service
+            visibility:
+              - condition: numeric_state
+                entity: sensor.van_12_km_to_service
+                below: 1000
+      - type: grid
+        cards:
+          - type: heading
+            heading: Truck 3
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.truck_3
+            badges:
+              - type: entity
+                entity: sensor.truck_3_status
+              - type: entity
+                entity: sensor.truck_3_last_seen
+          - type: tile
+            entity: sensor.truck_3_distance_today
+          - type: tile
+            entity: sensor.truck_3_trips_today
+          - type: tile
+            entity: sensor.truck_3_point_of_interest
+          - type: tile
+            entity: event.truck_3_last_alert
+          # Shown only when something needs attention.
+          - type: tile
+            entity: binary_sensor.truck_3_engine_fault
+            visibility:
+              - condition: state
+                entity: binary_sensor.truck_3_engine_fault
+                state: "on"
+          - type: tile
+            entity: binary_sensor.truck_3_maintenance_due
+            visibility:
+              - condition: state
+                entity: binary_sensor.truck_3_maintenance_due
+                state: "on"
+          - type: tile
+            entity: sensor.truck_3_km_to_service
+            visibility:
+              - condition: numeric_state
+                entity: sensor.truck_3_km_to_service
+                below: 1000
+      - type: grid
+        cards:
+          - type: heading
+            heading: Car 2
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.car_2
+            badges:
+              - type: entity
+                entity: sensor.car_2_status
+              - type: entity
+                entity: sensor.car_2_last_seen
+          - type: tile
+            entity: sensor.car_2_distance_today
+          - type: tile
+            entity: sensor.car_2_trips_today
+          - type: tile
+            entity: sensor.car_2_point_of_interest
+          - type: tile
+            entity: event.car_2_last_alert
+          # Shown only when something needs attention.
+          - type: tile
+            entity: binary_sensor.car_2_engine_fault
+            visibility:
+              - condition: state
+                entity: binary_sensor.car_2_engine_fault
+                state: "on"
+          - type: tile
+            entity: binary_sensor.car_2_maintenance_due
+            visibility:
+              - condition: state
+                entity: binary_sensor.car_2_maintenance_due
+                state: "on"
+          - type: tile
+            entity: sensor.car_2_km_to_service
+            visibility:
+              - condition: numeric_state
+                entity: sensor.car_2_km_to_service
+                below: 1000

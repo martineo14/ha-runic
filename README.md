@@ -57,9 +57,11 @@ Each vehicle is a device. Its page in Settings → Devices & services shows, dep
 | Map and coordinates | `device_tracker.<vehicle>` |
 | Today: distance, driving, trips, stopped | `sensor.<vehicle>_distance_today`, `_driving_time_today`, `_trips_today`, `_stopped_time_today` (every 15 minutes, back to zero each day) |
 | Mileage, engine hours | `sensor.<vehicle>_odometer`, `sensor.<vehicle>_engine_hours` |
-| Service deadline | `sensor.<vehicle>_next_service`, set by Runic's maintenance alert, with the task as an attribute |
+| Service | `sensor.<vehicle>_km_to_service`: type the odometer km of the next service once in `number.<vehicle>_service_at` (from the Runic portal's deadlines) and it counts down; `binary_sensor.<vehicle>_maintenance_due` when the tracker reports it; `sensor.<vehicle>_next_service`, a date set by Runic's maintenance alert (Unknown until Runic sends one: its API has no deadlines yet) |
 | Where it is | `sensor.<vehicle>_point_of_interest`: the Runic POI it's in, by name, or *Away* |
-| From the tracker, when wired | ignition, engine, immobilizer, doors (each door as an attribute), cargo temperature and humidity, fuel used; digital inputs (off by default, turn them on per vehicle) |
+| From the tracker, when wired | ignition, engine, immobilizer, doors (each door as an attribute), cargo temperature and humidity, fuel used, parking mode; digital inputs (off by default, turn them on per vehicle) |
+| Today and last trip | idle time and top speed today, average consumption (when Runic reports fuel), `sensor.<vehicle>_last_trip` (km, with start, end, duration and top speed as attributes), `sensor.<vehicle>_last_trip_ended` |
+| Engine and tracker health, when reported | engine fault (on with any fault code), fault codes, km with the check-engine light on, coolant, engine and oil temperature, engine speed; tracker battery, external and control module voltage, GPS satellites (diagnostic) |
 | Also | speed, moving, battery voltage, fuel level, last alert; GSM signal (diagnostic, off by default) |
 
 The device page also shows the plate (as serial number), the tracker firmware and a **Visit** link to the
@@ -71,10 +73,12 @@ after two updates in a row without it (about 10 minutes), so a one-off glitch ne
 also delete it at once from its device page.
 Insurance and inspection dates are not in Runic's API, so they can't be shown.
 
-**A Runic-style dashboard:** [`docs/vehicle-dashboard.yaml`](docs/vehicle-dashboard.yaml) recreates the page
-with built-in cards: name with status badges, a large map with today's route, the Today and Vehicle blocks,
-the next service and recent alerts. Create a dashboard, then ⋮ → Edit dashboard → ⋮ → Raw configuration editor,
-paste the file and replace `van_12` with your vehicle's entity name.
+**Dashboards**, using only built-in cards:
+
+- [`docs/vehicle-dashboard.yaml`](docs/vehicle-dashboard.yaml): one vehicle, like Runic's page. Name with status, last-seen and POI badges, a large map with today's route, Today, Last trip, Vehicle, Service and health, km per day as a bar chart, and recent alerts.
+- [`docs/fleet-dashboard.yaml`](docs/fleet-dashboard.yaml): every vehicle on one map with today's routes, and a section per vehicle with today's km, trips, where it is and its last alert. Engine faults, maintenance due and a service under 1,000 km appear only when they apply.
+
+Create a dashboard, then ⋮ → Edit dashboard → ⋮ → Raw configuration editor, paste a file and replace `van_12` (and `truck_3`, `car_2`) with your vehicles' entity names. Remove cards for values your tracker doesn't report.
 
 Entity ids follow Home Assistant's language when the integration is first added: on an Italian system they
 are `sensor.<vehicle>_velocita`, `_stato`, `_distanza_oggi`… (see the Italian README).

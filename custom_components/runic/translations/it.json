@@ -103,6 +103,71 @@
         "state": {
           "away": "Fuori"
         }
+      },
+      "km_to_service": {
+        "name": "Km al tagliando"
+      },
+      "idle_time_today": {
+        "name": "Tempo al minimo oggi"
+      },
+      "max_speed_today": {
+        "name": "Velocità massima oggi"
+      },
+      "avg_consumption_today": {
+        "name": "Consumo medio oggi"
+      },
+      "last_trip": {
+        "name": "Ultimo viaggio",
+        "state_attributes": {
+          "start": {
+            "name": "Inizio"
+          },
+          "end": {
+            "name": "Fine"
+          },
+          "duration_min": {
+            "name": "Durata (min)"
+          },
+          "max_speed_kmh": {
+            "name": "Velocità massima (km/h)"
+          }
+        }
+      },
+      "last_trip_end": {
+        "name": "Fine ultimo viaggio"
+      },
+      "fault_codes": {
+        "name": "Codici di errore"
+      },
+      "check_engine_distance": {
+        "name": "Km con spia motore accesa"
+      },
+      "coolant_temperature": {
+        "name": "Temperatura liquido di raffreddamento"
+      },
+      "engine_temperature": {
+        "name": "Temperatura motore"
+      },
+      "oil_temperature": {
+        "name": "Temperatura olio"
+      },
+      "rpm": {
+        "name": "Giri motore"
+      },
+      "module_voltage": {
+        "name": "Tensione centralina"
+      },
+      "tracker_battery": {
+        "name": "Batteria localizzatore"
+      },
+      "tracker_battery_voltage": {
+        "name": "Tensione batteria localizzatore"
+      },
+      "external_voltage": {
+        "name": "Tensione esterna"
+      },
+      "satellites": {
+        "name": "Satelliti GPS"
       }
     },
     "event": {
@@ -173,6 +238,23 @@
       },
       "digital_input": {
         "name": "Ingresso digitale {number}"
+      },
+      "maintenance_due": {
+        "name": "Manutenzione in scadenza"
+      },
+      "engine_fault": {
+        "name": "Guasto motore"
+      },
+      "parking_mode": {
+        "name": "Modalità parcheggio"
+      },
+      "sleep_mode": {
+        "name": "Localizzatore in sospensione"
+      }
+    },
+    "number": {
+      "service_at": {
+        "name": "Tagliando a"
       }
     }
   },

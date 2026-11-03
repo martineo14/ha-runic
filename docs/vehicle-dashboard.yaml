@@ -1,6 +1,7 @@
 # A Runic-style page for one vehicle, using only Home Assistant's built-in cards.
 # Settings → Dashboards → Add dashboard → open it → ⋮ → Edit dashboard → ⋮ → Raw configuration editor → paste.
 # Replace "van_12" with your vehicle's entity name (e.g. mercedes_glk) and "Van 12" with its name.
+# Cards for values your tracker doesn't report show "Entity not available": delete them.
 views:
   - title: Van 12
     path: van-12
@@ -18,6 +19,8 @@ views:
                 entity: sensor.van_12_status
               - type: entity
                 entity: sensor.van_12_last_seen
+              - type: entity
+                entity: sensor.van_12_point_of_interest
               - type: entity
                 entity: binary_sensor.runic_io_alert_stream
           - type: map
@@ -41,6 +44,19 @@ views:
             entity: sensor.van_12_trips_today
           - type: tile
             entity: sensor.van_12_stopped_time_today
+          - type: tile
+            entity: sensor.van_12_idle_time_today
+          - type: tile
+            entity: sensor.van_12_top_speed_today
+          - type: heading
+            heading: Last trip
+            icon: mdi:map-marker-distance
+          - type: tile
+            entity: sensor.van_12_last_trip
+          - type: tile
+            entity: sensor.van_12_last_trip_ended
+      - type: grid
+        cards:
           - type: heading
             heading: Vehicle
             icon: mdi:car
@@ -52,16 +68,53 @@ views:
             entity: sensor.van_12_speed
           - type: tile
             entity: sensor.van_12_battery_voltage
+          - type: tile
+            entity: sensor.van_12_fuel_level
+          - type: tile
+            entity: binary_sensor.van_12_doors
       - type: grid
-        column_span: 3
         cards:
           - type: heading
-            heading: Deadlines and alerts
-            icon: mdi:calendar-check
+            heading: Service and health
+            icon: mdi:wrench-clock
+          - type: tile
+            entity: sensor.van_12_km_to_service
+          - type: tile
+            entity: number.van_12_service_at
+            features:
+              - type: numeric-input
+                style: buttons
           - type: tile
             entity: sensor.van_12_next_service
           - type: tile
-            entity: event.van_12_last_alert
+            entity: binary_sensor.van_12_maintenance_due
+          - type: tile
+            entity: binary_sensor.van_12_engine_fault
+          - type: tile
+            entity: sensor.van_12_fault_codes
+          - type: tile
+            entity: sensor.van_12_coolant_temperature
+          - type: tile
+            entity: sensor.van_12_tracker_battery
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Km per day
+            icon: mdi:chart-bar
+          - type: statistics-graph
+            entities:
+              - sensor.van_12_odometer
+            stat_types:
+              - change                 # km driven each day, from the odometer
+            period: day
+            days_to_show: 30
+            chart_type: bar
+            grid_options:
+              columns: full
+          - type: heading
+            heading: Recent alerts
+            icon: mdi:bell-ring-outline
           - type: logbook
             target:
               entity_id:

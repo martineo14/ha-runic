@@ -17,6 +17,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
+    REVOLUTIONS_PER_MINUTE,
     UnitOfTemperature,
     UnitOfElectricPotential,
     UnitOfLength,
@@ -33,6 +34,22 @@ from homeassistant.util import dt as dt_util
 from . import RunicConfigEntry
 from .const import (
     DOMAIN,
+    MEASURE_COOLANT_TEMP,
+    MEASURE_ENGINE_TEMP_CAN,
+    MEASURE_EXTERNAL_VOLTAGE,
+    MEASURE_FAULT_CODES,
+    MEASURE_FUEL_LITERS,
+    MEASURE_FUEL_PERCENT,
+    MEASURE_FUEL_PERCENT_OBD,
+    MEASURE_MIL_DISTANCE,
+    MEASURE_MODULE_VOLTAGE,
+    MEASURE_OIL_TEMP,
+    MEASURE_RPM,
+    MEASURE_RPM_CAN,
+    MEASURE_SATELLITES,
+    MEASURE_TRACKER_BATTERY,
+    MEASURE_TRACKER_BATTERY_ALT,
+    MEASURE_TRACKER_BATTERY_V,
     EVENT_RUNIC,
     MEASURE_BATTERY_VOLTAGE,
     MEASURE_ENGINE_HOURS,
@@ -96,6 +113,7 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        suggested_display_precision=0,
         value_fn=lambda v: v.get("speed"),
     ),
     RunicSensorDescription(
@@ -104,6 +122,7 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        suggested_display_precision=0,
         value_fn=lambda v: v.get("odometer_km"),
         exists_fn=lambda v: v.get("odometer_km") is not None,
     ),
@@ -132,8 +151,8 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
         translation_key="fuel_level",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
-        value_fn=_measure(MEASURE_FUEL_PERCENT_CAN),
-        exists_fn=lambda v: _measure(MEASURE_FUEL_PERCENT_CAN)(v) is not None,
+        value_fn=_measure(MEASURE_FUEL_PERCENT_CAN, MEASURE_FUEL_PERCENT, MEASURE_FUEL_PERCENT_OBD),
+        exists_fn=lambda v: _measure(MEASURE_FUEL_PERCENT_CAN, MEASURE_FUEL_PERCENT, MEASURE_FUEL_PERCENT_OBD)(v) is not None,
     ),
     RunicSensorDescription(
         key="fuel_volume",
@@ -141,8 +160,8 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
         device_class=SensorDeviceClass.VOLUME_STORAGE,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfVolume.LITERS,
-        value_fn=_measure(MEASURE_FUEL_LITERS_OEM),
-        exists_fn=lambda v: _measure(MEASURE_FUEL_LITERS_OEM)(v) is not None,
+        value_fn=_measure(MEASURE_FUEL_LITERS_OEM, MEASURE_FUEL_LITERS),
+        exists_fn=lambda v: _measure(MEASURE_FUEL_LITERS_OEM, MEASURE_FUEL_LITERS)(v) is not None,
     ),
     RunicSensorDescription(
         key="temperature",
@@ -183,6 +202,73 @@ VEHICLE_SENSORS: tuple[RunicSensorDescription, ...] = (
     ),
 )
 
+def _measure_sensor(key: str, ids: tuple[int, ...], **kwargs: Any) -> RunicSensorDescription:
+    """A sensor for a status measure, created only when the vehicle reports one of its ids."""
+    return RunicSensorDescription(
+        key=key,
+        translation_key=key,
+        value_fn=_measure(*ids),
+        exists_fn=lambda v: _measure(*ids)(v) is not None,
+        **kwargs,
+    )
+
+
+# Engine health (OBD and CAN trackers) and the tracker's own health.
+HEALTH_SENSORS: tuple[RunicSensorDescription, ...] = (
+    _measure_sensor("fault_codes", (MEASURE_FAULT_CODES,), state_class=SensorStateClass.MEASUREMENT),
+    _measure_sensor(
+        "check_engine_distance", (MEASURE_MIL_DISTANCE,),
+        device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS, suggested_display_precision=0,
+    ),
+    _measure_sensor(
+        "coolant_temperature", (MEASURE_COOLANT_TEMP,),
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS, suggested_display_precision=0,
+    ),
+    _measure_sensor(
+        "engine_temperature", (MEASURE_ENGINE_TEMP_CAN,),
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS, suggested_display_precision=0,
+    ),
+    _measure_sensor(
+        "oil_temperature", (MEASURE_OIL_TEMP,),
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS, suggested_display_precision=0,
+    ),
+    _measure_sensor(
+        "rpm", (MEASURE_RPM, MEASURE_RPM_CAN), state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=REVOLUTIONS_PER_MINUTE, suggested_display_precision=0,
+    ),
+    _measure_sensor(
+        "module_voltage", (MEASURE_MODULE_VOLTAGE,),
+        device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT, suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    _measure_sensor(
+        "tracker_battery", (MEASURE_TRACKER_BATTERY, MEASURE_TRACKER_BATTERY_ALT),
+        device_class=SensorDeviceClass.BATTERY, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE, entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    _measure_sensor(
+        "tracker_battery_voltage", (MEASURE_TRACKER_BATTERY_V,),
+        device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT, suggested_display_precision=2,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    _measure_sensor(
+        "external_voltage", (MEASURE_EXTERNAL_VOLTAGE,),
+        device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT, suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    _measure_sensor(
+        "satellites", (MEASURE_SATELLITES,), state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
+    ),
+)
+
 TODAY_SENSORS: tuple[RunicSensorDescription, ...] = (
     RunicSensorDescription(
         key="distance_today",
@@ -217,6 +303,47 @@ TODAY_SENSORS: tuple[RunicSensorDescription, ...] = (
         suggested_display_precision=0,
         value_fn=lambda t: None if t.get("stopped_s") is None else t["stopped_s"] / 60,
     ),
+    RunicSensorDescription(
+        key="idle_time_today",
+        translation_key="idle_time_today",
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        value_fn=lambda t: None if t.get("idle_s") is None else t["idle_s"] / 60,
+    ),
+    RunicSensorDescription(
+        key="max_speed_today",
+        translation_key="max_speed_today",
+        device_class=SensorDeviceClass.SPEED,
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        suggested_display_precision=0,
+        value_fn=lambda t: t.get("max_speed"),
+    ),
+    RunicSensorDescription(
+        key="last_trip",
+        translation_key="last_trip",
+        device_class=SensorDeviceClass.DISTANCE,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        suggested_display_precision=1,
+        value_fn=lambda t: (t.get("last_trip") or {}).get("distance_km"),
+    ),
+    RunicSensorDescription(
+        key="last_trip_end",
+        translation_key="last_trip_end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda t: dt_util.utc_from_timestamp(t["last_trip"]["end"]) if t.get("last_trip") else None,
+    ),
+)
+
+# Average consumption only when Runic's daily report has it (CAN fuel data).
+AVG_FUEL = RunicSensorDescription(
+    key="avg_consumption_today",
+    translation_key="avg_consumption_today",
+    state_class=SensorStateClass.MEASUREMENT,
+    native_unit_of_measurement="km/L",
+    suggested_display_precision=1,
+    value_fn=lambda t: t.get("avg_fuel"),
 )
 
 
@@ -232,8 +359,18 @@ async def async_setup_entry(
             asked_today.add(vid)  # a vehicle added since the last "today" update: fetch its figures now
             hass.async_create_task(today.async_request_refresh())
         return [
-            *(RunicVehicleSensor(coordinator, vid, d) for d in VEHICLE_SENSORS if d.exists_fn(vehicle)),
+            *(
+                RunicVehicleSensor(coordinator, vid, d)
+                for d in (*VEHICLE_SENSORS, *HEALTH_SENSORS)
+                if d.exists_fn(vehicle)
+            ),
             *(RunicTodaySensor(today, vid, d) for d in TODAY_SENSORS),
+            *(
+                [RunicTodaySensor(today, vid, AVG_FUEL)]
+                if ((today.data or {}).get(vid) or {}).get("avg_fuel") is not None
+                else []
+            ),
+            RunicKmToService(coordinator, vid),
             RunicNextService(coordinator, vid),
             RunicPoiSensor(coordinator, vid),
         ]
@@ -275,6 +412,20 @@ class RunicTodaySensor(CoordinatorEntity[RunicTodayCoordinator], SensorEntity):
     @property
     def native_value(self) -> Any:
         return self.entity_description.value_fn(self.coordinator.data[self.vehicle_id])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.key != "last_trip":
+            return None
+        trip = self.coordinator.data[self.vehicle_id].get("last_trip")
+        if not trip:
+            return None
+        return {
+            "start": dt_util.utc_from_timestamp(trip["start"]).isoformat(),
+            "end": dt_util.utc_from_timestamp(trip["end"]).isoformat(),
+            "duration_min": round(trip["duration_s"] / 60),
+            "max_speed_kmh": trip["max_speed"],
+        }
 
 
 class RunicNextService(RunicVehicleEntity, RestoreSensor):
@@ -334,3 +485,23 @@ class RunicPoiSensor(RunicVehicleEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         poi = poi_at(self.vehicle, self.coordinator.pois)
         return {"poi_id": poi["poi_id"] if poi else None}
+
+
+class RunicKmToService(RunicVehicleEntity, SensorEntity):
+    """Km left until the next service: the "Service at" number minus the odometer."""
+
+    _attr_translation_key = "km_to_service"
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator, vehicle_id: int) -> None:
+        super().__init__(coordinator, vehicle_id, "km_to_service")
+
+    @property
+    def native_value(self) -> float | None:
+        target = self.coordinator.service_targets.get(self.vehicle_id)
+        odometer = self.vehicle.get("odometer_km")
+        if target is None or odometer is None:
+            return None
+        return round(target - odometer)  # negative once the service is overdue

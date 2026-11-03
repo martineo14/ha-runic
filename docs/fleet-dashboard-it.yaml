@@ -1,0 +1,148 @@
+# Tutti i veicoli Runic in una pagina, solo con le schede integrate di Home Assistant.
+# Impostazioni → Plance → Aggiungi plancia → aprila → ⋮ → Modifica plancia → ⋮ → Editor di configurazione testuale → incolla.
+# Una sezione per veicolo: copiane una per ciascuno dei tuoi e sostituisci i nomi entità
+# (furgone_12, camion_3, auto_2) con quelli dei tuoi veicoli (es. mercedes_glk). Aggiungili anche alla mappa.
+views:
+  - title: Flotta
+    path: flotta
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: heading
+            heading: Flotta
+            heading_style: title
+            badges:
+              - type: entity
+                entity: binary_sensor.runic_io_stream_avvisi
+          - type: map
+            entities:
+              - device_tracker.furgone_12
+              - device_tracker.camion_3
+              - device_tracker.auto_2
+            hours_to_show: 24          # i percorsi di oggi
+            grid_options:
+              columns: full
+              rows: 8
+      - type: grid
+        cards:
+          - type: heading
+            heading: Furgone 12
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.furgone_12
+            badges:
+              - type: entity
+                entity: sensor.furgone_12_stato
+              - type: entity
+                entity: sensor.furgone_12_ultimo_rilevamento
+          - type: tile
+            entity: sensor.furgone_12_distanza_oggi
+          - type: tile
+            entity: sensor.furgone_12_viaggi_oggi
+          - type: tile
+            entity: sensor.furgone_12_punto_di_interesse
+          - type: tile
+            entity: event.furgone_12_ultimo_avviso
+          # Visibili solo quando qualcosa richiede attenzione.
+          - type: tile
+            entity: binary_sensor.furgone_12_guasto_motore
+            visibility:
+              - condition: state
+                entity: binary_sensor.furgone_12_guasto_motore
+                state: "on"
+          - type: tile
+            entity: binary_sensor.furgone_12_manutenzione_in_scadenza
+            visibility:
+              - condition: state
+                entity: binary_sensor.furgone_12_manutenzione_in_scadenza
+                state: "on"
+          - type: tile
+            entity: sensor.furgone_12_km_al_tagliando
+            visibility:
+              - condition: numeric_state
+                entity: sensor.furgone_12_km_al_tagliando
+                below: 1000
+      - type: grid
+        cards:
+          - type: heading
+            heading: Camion 3
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.camion_3
+            badges:
+              - type: entity
+                entity: sensor.camion_3_stato
+              - type: entity
+                entity: sensor.camion_3_ultimo_rilevamento
+          - type: tile
+            entity: sensor.camion_3_distanza_oggi
+          - type: tile
+            entity: sensor.camion_3_viaggi_oggi
+          - type: tile
+            entity: sensor.camion_3_punto_di_interesse
+          - type: tile
+            entity: event.camion_3_ultimo_avviso
+          # Visibili solo quando qualcosa richiede attenzione.
+          - type: tile
+            entity: binary_sensor.camion_3_guasto_motore
+            visibility:
+              - condition: state
+                entity: binary_sensor.camion_3_guasto_motore
+                state: "on"
+          - type: tile
+            entity: binary_sensor.camion_3_manutenzione_in_scadenza
+            visibility:
+              - condition: state
+                entity: binary_sensor.camion_3_manutenzione_in_scadenza
+                state: "on"
+          - type: tile
+            entity: sensor.camion_3_km_al_tagliando
+            visibility:
+              - condition: numeric_state
+                entity: sensor.camion_3_km_al_tagliando
+                below: 1000
+      - type: grid
+        cards:
+          - type: heading
+            heading: Auto 2
+            heading_style: title
+            tap_action:
+              action: more-info
+              entity: device_tracker.auto_2
+            badges:
+              - type: entity
+                entity: sensor.auto_2_stato
+              - type: entity
+                entity: sensor.auto_2_ultimo_rilevamento
+          - type: tile
+            entity: sensor.auto_2_distanza_oggi
+          - type: tile
+            entity: sensor.auto_2_viaggi_oggi
+          - type: tile
+            entity: sensor.auto_2_punto_di_interesse
+          - type: tile
+            entity: event.auto_2_ultimo_avviso
+          # Visibili solo quando qualcosa richiede attenzione.
+          - type: tile
+            entity: binary_sensor.auto_2_guasto_motore
+            visibility:
+              - condition: state
+                entity: binary_sensor.auto_2_guasto_motore
+                state: "on"
+          - type: tile
+            entity: binary_sensor.auto_2_manutenzione_in_scadenza
+            visibility:
+              - condition: state
+                entity: binary_sensor.auto_2_manutenzione_in_scadenza
+                state: "on"
+          - type: tile
+            entity: sensor.auto_2_km_al_tagliando
+            visibility:
+              - condition: numeric_state
+                entity: sensor.auto_2_km_al_tagliando
+                below: 1000

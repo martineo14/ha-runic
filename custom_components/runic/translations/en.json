@@ -103,6 +103,71 @@
         "state": {
           "away": "Away"
         }
+      },
+      "km_to_service": {
+        "name": "Km to service"
+      },
+      "idle_time_today": {
+        "name": "Idle time today"
+      },
+      "max_speed_today": {
+        "name": "Top speed today"
+      },
+      "avg_consumption_today": {
+        "name": "Average consumption today"
+      },
+      "last_trip": {
+        "name": "Last trip",
+        "state_attributes": {
+          "start": {
+            "name": "Start"
+          },
+          "end": {
+            "name": "End"
+          },
+          "duration_min": {
+            "name": "Duration (min)"
+          },
+          "max_speed_kmh": {
+            "name": "Top speed (km/h)"
+          }
+        }
+      },
+      "last_trip_end": {
+        "name": "Last trip ended"
+      },
+      "fault_codes": {
+        "name": "Fault codes"
+      },
+      "check_engine_distance": {
+        "name": "Km with check-engine light on"
+      },
+      "coolant_temperature": {
+        "name": "Coolant temperature"
+      },
+      "engine_temperature": {
+        "name": "Engine temperature"
+      },
+      "oil_temperature": {
+        "name": "Oil temperature"
+      },
+      "rpm": {
+        "name": "Engine speed"
+      },
+      "module_voltage": {
+        "name": "Control module voltage"
+      },
+      "tracker_battery": {
+        "name": "Tracker battery"
+      },
+      "tracker_battery_voltage": {
+        "name": "Tracker battery voltage"
+      },
+      "external_voltage": {
+        "name": "External voltage"
+      },
+      "satellites": {
+        "name": "GPS satellites"
       }
     },
     "event": {
@@ -173,6 +238,23 @@
       },
       "digital_input": {
         "name": "Digital input {number}"
+      },
+      "maintenance_due": {
+        "name": "Maintenance due"
+      },
+      "engine_fault": {
+        "name": "Engine fault"
+      },
+      "parking_mode": {
+        "name": "Parking mode"
+      },
+      "sleep_mode": {
+        "name": "Tracker sleep mode"
+      }
+    },
+    "number": {
+      "service_at": {
+        "name": "Service at"
       }
     }
   },

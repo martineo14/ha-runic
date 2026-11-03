@@ -25,8 +25,12 @@ from .const import (
     MEASURE_DIGITAL_INPUTS,
     MEASURE_DOORS,
     MEASURE_ENGINE,
+    MEASURE_FAULT_CODES,
     MEASURE_IGNITION,
     MEASURE_IMMOBILIZER,
+    MEASURE_MAINTENANCE,
+    MEASURE_PARKING_MODE,
+    MEASURE_SLEEP_MODE,
     SIGNAL_STREAM_STATE,
 )
 from .coordinator import is_moving
@@ -134,6 +138,27 @@ MEASURE_BINARY_SENSORS: tuple[RunicBinaryDescription, ...] = (
         key="engine", translation_key="engine", device_class=BinarySensorDeviceClass.RUNNING, measure_id=MEASURE_ENGINE
     ),
     RunicBinaryDescription(key="immobilizer", translation_key="immobilizer", measure_id=MEASURE_IMMOBILIZER),
+    RunicBinaryDescription(
+        key="maintenance_due",
+        translation_key="maintenance_due",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        measure_id=MEASURE_MAINTENANCE,
+    ),
+    RunicBinaryDescription(
+        key="engine_fault",
+        translation_key="engine_fault",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        measure_id=MEASURE_FAULT_CODES,
+        is_on_fn=lambda value: int(value) > 0,  # any stored diagnostic trouble code
+    ),
+    RunicBinaryDescription(key="parking_mode", translation_key="parking_mode", measure_id=MEASURE_PARKING_MODE),
+    RunicBinaryDescription(
+        key="sleep_mode",
+        translation_key="sleep_mode",
+        measure_id=MEASURE_SLEEP_MODE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        is_on_fn=lambda value: int(value) != 0,
+    ),
     RunicBinaryDescription(
         key="doors",
         translation_key="doors",

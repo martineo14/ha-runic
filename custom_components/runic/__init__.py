@@ -38,7 +38,13 @@ from .stream import RunicStream, StreamAuthError, uses_stream
 from .zones import ZoneSync
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT, Platform.SENSOR]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.DEVICE_TRACKER,
+    Platform.EVENT,
+    Platform.NUMBER,
+    Platform.SENSOR,
+]
 
 
 @dataclass

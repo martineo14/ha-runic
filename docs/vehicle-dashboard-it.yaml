@@ -1,6 +1,7 @@
 # Una pagina in stile Runic per un veicolo, solo con le schede integrate di Home Assistant.
 # Impostazioni → Plance → Aggiungi plancia → aprila → ⋮ → Modifica plancia → ⋮ → Editor di configurazione testuale → incolla.
 # Sostituisci "furgone_12" con il nome entità del tuo veicolo (es. mercedes_glk) e "Furgone 12" con il suo nome.
+# Le schede dei valori che il tuo localizzatore non invia mostrano "Entità non disponibile": eliminale.
 views:
   - title: Furgone 12
     path: furgone-12
@@ -18,6 +19,8 @@ views:
                 entity: sensor.furgone_12_stato
               - type: entity
                 entity: sensor.furgone_12_ultimo_rilevamento
+              - type: entity
+                entity: sensor.furgone_12_punto_di_interesse
               - type: entity
                 entity: binary_sensor.runic_io_stream_avvisi
           - type: map
@@ -41,6 +44,19 @@ views:
             entity: sensor.furgone_12_viaggi_oggi
           - type: tile
             entity: sensor.furgone_12_tempo_in_sosta_oggi
+          - type: tile
+            entity: sensor.furgone_12_tempo_al_minimo_oggi
+          - type: tile
+            entity: sensor.furgone_12_velocita_massima_oggi
+          - type: heading
+            heading: Ultimo viaggio
+            icon: mdi:map-marker-distance
+          - type: tile
+            entity: sensor.furgone_12_ultimo_viaggio
+          - type: tile
+            entity: sensor.furgone_12_fine_ultimo_viaggio
+      - type: grid
+        cards:
           - type: heading
             heading: Veicolo
             icon: mdi:car
@@ -52,16 +68,53 @@ views:
             entity: sensor.furgone_12_velocita
           - type: tile
             entity: sensor.furgone_12_tensione_batteria
+          - type: tile
+            entity: sensor.furgone_12_livello_carburante
+          - type: tile
+            entity: binary_sensor.furgone_12_porte
       - type: grid
-        column_span: 3
         cards:
           - type: heading
-            heading: Scadenze e avvisi
-            icon: mdi:calendar-check
+            heading: Tagliando e stato
+            icon: mdi:wrench-clock
+          - type: tile
+            entity: sensor.furgone_12_km_al_tagliando
+          - type: tile
+            entity: number.furgone_12_tagliando_a
+            features:
+              - type: numeric-input
+                style: buttons
           - type: tile
             entity: sensor.furgone_12_prossimo_tagliando
           - type: tile
-            entity: event.furgone_12_ultimo_avviso
+            entity: binary_sensor.furgone_12_manutenzione_in_scadenza
+          - type: tile
+            entity: binary_sensor.furgone_12_guasto_motore
+          - type: tile
+            entity: sensor.furgone_12_codici_di_errore
+          - type: tile
+            entity: sensor.furgone_12_temperatura_liquido_di_raffreddamento
+          - type: tile
+            entity: sensor.furgone_12_batteria_localizzatore
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Km al giorno
+            icon: mdi:chart-bar
+          - type: statistics-graph
+            entities:
+              - sensor.furgone_12_contachilometri
+            stat_types:
+              - change                 # km percorsi ogni giorno, dal contachilometri
+            period: day
+            days_to_show: 30
+            chart_type: bar
+            grid_options:
+              columns: full
+          - type: heading
+            heading: Avvisi recenti
+            icon: mdi:bell-ring-outline
           - type: logbook
             target:
               entity_id:

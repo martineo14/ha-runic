@@ -57,9 +57,11 @@ Ogni veicolo è un dispositivo. La sua pagina in Impostazioni → Dispositivi e 
 | Mappa e coordinate | `device_tracker.<veicolo>` |
 | Oggi: distanza, guida, viaggi, sosta | `sensor.<veicolo>_distanza_oggi`, `_tempo_di_guida_oggi`, `_viaggi_oggi`, `_tempo_in_sosta_oggi` (ogni 15 minuti, ripartono da zero ogni giorno) |
 | Chilometri, ore motore | `sensor.<veicolo>_contachilometri`, `sensor.<veicolo>_ore_motore` |
-| Scadenza tagliando | `sensor.<veicolo>_prossimo_tagliando`, impostato dall'avviso di manutenzione di Runic, con l'intervento come attributo |
+| Tagliando | `sensor.<veicolo>_km_al_tagliando`: inserisci una volta in `number.<veicolo>_tagliando_a` i km del contachilometri del prossimo tagliando (dalle scadenze del portale Runic) e il conto alla rovescia parte; `binary_sensor.<veicolo>_manutenzione_in_scadenza` quando il localizzatore lo invia; `sensor.<veicolo>_prossimo_tagliando`, una data impostata dall'avviso di manutenzione di Runic (Sconosciuto finché Runic non ne invia uno: la sua API non ha ancora le scadenze) |
 | Dove si trova | `sensor.<veicolo>_punto_di_interesse`: il punto di interesse Runic in cui si trova, per nome, oppure *Fuori* |
-| Dal localizzatore, se collegati | quadro acceso, motore, immobilizzatore, porte (ogni porta come attributo), temperatura e umidità del vano di carico, carburante consumato; ingressi digitali (disattivati di default, attivali per ogni veicolo) |
+| Dal localizzatore, se collegati | quadro acceso, motore, immobilizzatore, porte (ogni porta come attributo), temperatura e umidità del vano di carico, carburante consumato, modalità parcheggio; ingressi digitali (disattivati di default, attivali per ogni veicolo) |
+| Oggi e ultimo viaggio | tempo al minimo e velocità massima di oggi, consumo medio (se Runic invia il carburante), `sensor.<veicolo>_ultimo_viaggio` (km, con inizio, fine, durata e velocità massima come attributi), `sensor.<veicolo>_fine_ultimo_viaggio` |
+| Stato di motore e localizzatore, se inviati | guasto motore (acceso con qualsiasi codice di errore), codici di errore, km con spia motore accesa, temperatura di liquido di raffreddamento, motore e olio, giri motore; batteria del localizzatore, tensione esterna e della centralina, satelliti GPS (diagnostica) |
 | Inoltre | velocità, in movimento, tensione batteria, livello carburante, ultimo avviso; segnale GSM (diagnostica, disattivato di default) |
 
 La pagina del dispositivo mostra anche la targa (come numero di serie), il firmware del localizzatore e un link
@@ -72,10 +74,12 @@ Runic viene rimosso da Home Assistant dopo due aggiornamenti di fila senza di lu
 momentaneo non cancella nulla; puoi anche eliminarlo subito dalla pagina del dispositivo. Le scadenze di assicurazione e revisione non sono nell'API di Runic,
 quindi non si possono mostrare.
 
-**Una plancia in stile Runic:** [`docs/vehicle-dashboard-it.yaml`](docs/vehicle-dashboard-it.yaml) ricrea la pagina
-con le schede integrate: nome con lo stato, una grande mappa con il percorso di oggi, i blocchi Oggi e Veicolo,
-il prossimo tagliando e gli ultimi avvisi. Crea una plancia, poi ⋮ → Modifica plancia → ⋮ → Editor di configurazione
-testuale, incolla il file e sostituisci `furgone_12` con il nome entità del tuo veicolo.
+**Plance**, solo con le schede integrate:
+
+- [`docs/vehicle-dashboard-it.yaml`](docs/vehicle-dashboard-it.yaml): un veicolo, come la pagina di Runic. Nome con stato, ultimo rilevamento e punto di interesse, una grande mappa con il percorso di oggi, Oggi, Ultimo viaggio, Veicolo, Tagliando e stato, km al giorno in un grafico a barre e gli avvisi recenti.
+- [`docs/fleet-dashboard-it.yaml`](docs/fleet-dashboard-it.yaml): tutti i veicoli su una mappa con i percorsi di oggi, e una sezione per veicolo con km e viaggi di oggi, dove si trova e l'ultimo avviso. Guasto motore, manutenzione in scadenza e tagliando sotto i 1.000 km compaiono solo quando servono.
+
+Crea una plancia, poi ⋮ → Modifica plancia → ⋮ → Editor di configurazione testuale, incolla un file e sostituisci `furgone_12` (e `camion_3`, `auto_2`) con i nomi entità dei tuoi veicoli. Elimina le schede dei valori che il tuo localizzatore non invia.
 
 Gli id delle entità seguono la lingua di Home Assistant al momento in cui aggiungi l'integrazione: in italiano sono
 `sensor.<veicolo>_velocita`, `_stato`, `_distanza_oggi`…; in inglese `_speed`, `_status`, `_distance_today`….

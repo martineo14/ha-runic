@@ -371,3 +371,72 @@ async def test_vehicle_removed_in_runic_is_removed_after_two_updates(hass: HomeA
     await _update(hass)
     assert registry.async_get_device(identifiers={(DOMAIN, "70001")}) is not None
     assert hass.states.get("device_tracker.truck_3") is not None
+
+
+async def test_v080_health_today_last_trip_and_service(hass: HomeAssistant, aioclient_mock):
+    import time
+
+    from homeassistant.util import dt as dt_util
+
+    today = dt_util.now().date().isoformat()
+    obd = {
+        **STATUS,
+        "vehicle_status": STATUS["vehicle_status"] + [
+            {"measure_id": 168, "type": "INT", "value": 2, "timestamp": 1},      # fault codes
+            {"measure_id": 181, "type": "FLOAT", "value": 37.0, "timestamp": 1},  # km with MIL on
+            {"measure_id": 170, "type": "FLOAT", "value": 88.0, "timestamp": 1},  # coolant
+            {"measure_id": 88, "type": "INT", "value": 76, "timestamp": 1},       # tracker battery %
+            {"measure_id": 73, "type": "INT", "value": 1, "timestamp": 1},        # maintenance due
+        ],
+    }
+    end = int(time.time()) - 600
+    aioclient_mock.get(f"{API_BASE}/vehicles", json=VEHICLES)
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806/status", json=obd)
+    aioclient_mock.get(f"{API_BASE}/pois", json=POIS)
+    aioclient_mock.get(
+        f"{API_BASE}/vehicles/58806/reports",
+        json={"paths": [{"date": today, "distance": "67.0", "driving_time": "5160", "idle_time": "420",
+                         "max_speed": "112.00", "avg_fuel": "14.2"}]},
+    )
+    aioclient_mock.get(
+        f"{API_BASE}/vehicles/58806/tracks",
+        json={"tracks": [
+            {"from_time": end - 7200, "to_time": end - 5400, "distance": "40.5", "max_speed": "112"},
+            {"from_time": end - 1500, "to_time": end, "distance": "26.5", "max_speed": "74"},
+        ], "stops": []},
+    )
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_TOKEN: "t", CONF_WEBHOOK_ID: "hook123", CONF_SIGNING_SECRET: SECRET})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.coordinator.async_refresh()   # consumption appears once today's report has it
+    await hass.async_block_till_done()
+
+    state = lambda eid: hass.states.get(eid).state  # noqa: E731
+    # Engine and tracker health
+    assert state("sensor.van_12_fault_codes") == "2"
+    assert state("binary_sensor.van_12_engine_fault") == "on"
+    assert state("sensor.van_12_km_with_check_engine_light_on") == "37.0"
+    assert state("sensor.van_12_coolant_temperature") == "88.0"
+    assert state("sensor.van_12_tracker_battery") == "76"
+    assert state("binary_sensor.van_12_maintenance_due") == "on"
+    assert hass.states.get("sensor.van_12_oil_temperature") is None      # not reported: no sensor
+    # Today
+    assert state("sensor.van_12_idle_time_today") == "7.0"
+    assert state("sensor.van_12_top_speed_today") == "112.0"
+    assert state("sensor.van_12_average_consumption_today") == "14.2"
+    # Last trip: the later one
+    trip = hass.states.get("sensor.van_12_last_trip")
+    assert trip.state == "26.5"
+    assert trip.attributes["duration_min"] == 25 and trip.attributes["max_speed_kmh"] == 74.0
+    assert state("sensor.van_12_last_trip_ended").startswith("20")
+    # Service: unknown until set, then counts down from the odometer (4,978 km in STATUS)
+    assert state("sensor.van_12_km_to_service") == "unknown"
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": "number.van_12_service_at", "value": 34320}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert state("sensor.van_12_km_to_service") == "29342"
+    # Icons follow the state
+    assert hass.states.get("sensor.van_12_status").state == "parked"

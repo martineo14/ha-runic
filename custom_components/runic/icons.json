@@ -1,0 +1,130 @@
+{
+  "entity": {
+    "sensor": {
+      "status": {
+        "default": "mdi:car",
+        "state": {
+          "driving": "mdi:car-arrow-right",
+          "parked": "mdi:car-brake-parking",
+          "offline": "mdi:car-off"
+        }
+      },
+      "trips_today": {
+        "default": "mdi:map-marker-path"
+      },
+      "poi": {
+        "default": "mdi:map-marker-radius",
+        "state": {
+          "away": "mdi:map-marker-off-outline"
+        }
+      },
+      "next_service": {
+        "default": "mdi:wrench-clock"
+      },
+      "km_to_service": {
+        "default": "mdi:wrench-outline"
+      },
+      "idle_time_today": {
+        "default": "mdi:timer-sand"
+      },
+      "max_speed_today": {
+        "default": "mdi:speedometer"
+      },
+      "avg_consumption_today": {
+        "default": "mdi:gas-station-outline"
+      },
+      "last_trip": {
+        "default": "mdi:map-marker-distance"
+      },
+      "last_trip_end": {
+        "default": "mdi:flag-checkered"
+      },
+      "fault_codes": {
+        "default": "mdi:car-wrench"
+      },
+      "check_engine_distance": {
+        "default": "mdi:engine-outline"
+      },
+      "rpm": {
+        "default": "mdi:gauge"
+      },
+      "fuel_level": {
+        "default": "mdi:gas-station"
+      },
+      "fuel_volume": {
+        "default": "mdi:gas-station"
+      },
+      "fuel_used": {
+        "default": "mdi:fuel"
+      },
+      "gsm_signal": {
+        "default": "mdi:signal"
+      },
+      "satellites": {
+        "default": "mdi:satellite-variant"
+      },
+      "engine_hours": {
+        "default": "mdi:engine"
+      }
+    },
+    "binary_sensor": {
+      "ignition": {
+        "default": "mdi:key-outline",
+        "state": {
+          "on": "mdi:key"
+        }
+      },
+      "immobilizer": {
+        "default": "mdi:shield-off-outline",
+        "state": {
+          "on": "mdi:shield-car"
+        }
+      },
+      "maintenance_due": {
+        "default": "mdi:wrench-check",
+        "state": {
+          "on": "mdi:wrench-clock"
+        }
+      },
+      "engine_fault": {
+        "default": "mdi:engine-outline",
+        "state": {
+          "on": "mdi:engine-off"
+        }
+      },
+      "parking_mode": {
+        "default": "mdi:parking"
+      },
+      "sleep_mode": {
+        "default": "mdi:sleep-off",
+        "state": {
+          "on": "mdi:sleep"
+        }
+      },
+      "digital_input": {
+        "default": "mdi:electric-switch"
+      },
+      "stream": {
+        "default": "mdi:cloud-off-outline",
+        "state": {
+          "on": "mdi:cloud-check-outline"
+        }
+      }
+    },
+    "number": {
+      "service_at": {
+        "default": "mdi:wrench-cog"
+      }
+    },
+    "event": {
+      "alert": {
+        "default": "mdi:bell-ring-outline"
+      }
+    }
+  },
+  "services": {
+    "sync_zones": {
+      "service": "mdi:map-marker-multiple"
+    }
+  }
+}
