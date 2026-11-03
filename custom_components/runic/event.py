@@ -8,14 +8,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import RunicConfigEntry
 from .const import ALERT_TYPES, EVENT_RUNIC
-from .entity import RunicVehicleEntity
+from .entity import RunicVehicleEntity, async_track_vehicles
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: RunicConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(RunicAlert(coordinator, vid) for vid in coordinator.data)
+    async_track_vehicles(
+        entry, coordinator, async_add_entities, lambda vid, vehicle: [RunicAlert(coordinator, vid)]
+    )
 
 
 class RunicAlert(RunicVehicleEntity, EventEntity):

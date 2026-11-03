@@ -244,3 +244,38 @@ def test_summarize_tracks_accepts_lists():
     assert summarize_tracks(
         [{"from_time": 0, "to_time": 10}, {"type": "stop", "from_time": 10, "to_time": 70}, {"from_time": 70}]
     ) == (2, 60)
+
+
+async def test_vehicle_added_later_appears_without_reload(hass: HomeAssistant, aioclient_mock):
+    from homeassistant.helpers import device_registry as dr
+
+    from .test_runic import STATUS
+
+    await setup(hass, aioclient_mock, STATUS)
+    assert hass.states.get("device_tracker.truck_3") is None
+    assert hass.states.get("binary_sensor.van_12_engine") is None
+
+    # A tracker is added to the Runic account, and Van 12's tracker starts reporting the engine.
+    truck = {"id": 70001, "name": "Truck 3", "latitude": 44.0, "longitude": 11.0, "timestamp": 1785879671, "status": "STOP"}
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{API_BASE}/vehicles", json={"vehicles": [*VEHICLES["vehicles"], truck]})
+    aioclient_mock.get(f"{API_BASE}/vehicles/58806", json=details(speed=0))
+    aioclient_mock.get(f"{API_BASE}/vehicles/70001", json={"vehicle": {**truck, "plate": "XY987ZT", "speed": 0}})
+    with_engine = {**STATUS, "vehicle_status": STATUS["vehicle_status"] + [{"measure_id": 60, "type": "INT", "value": 1, "timestamp": 1}]}
+    mock_extras(aioclient_mock, status=with_engine)
+    aioclient_mock.get(f"{API_BASE}/vehicles/70001/status", json={"vehicle_status": [], "odometer": None})
+    aioclient_mock.get(f"{API_BASE}/vehicles/70001/reports", json={"paths": []})
+    aioclient_mock.get(f"{API_BASE}/vehicles/70001/tracks", json={"tracks": [], "stops": []})
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    await entry.runtime_data.coordinator.async_refresh()   # the next 5-minute update
+    await hass.async_block_till_done()
+
+    assert hass.states.get("device_tracker.truck_3") is not None
+    assert hass.states.get("sensor.truck_3_status").state == "parked"
+    assert hass.states.get("event.truck_3_last_alert") is not None
+    assert hass.states.get("sensor.truck_3_trips_today").state == "0"   # its "today" figures fetched straight away
+    assert hass.states.get("binary_sensor.van_12_engine").state == "on"
+    assert dr.async_get(hass).async_get_device(identifiers={(DOMAIN, "70001")}).serial_number == "XY987ZT"
+    # No duplicates of Van 12's existing entities.
+    assert len(hass.states.async_entity_ids("device_tracker")) == 2

@@ -46,7 +46,7 @@ from .const import (
     MEASURE_VEHICLE_STATUS,
 )
 from .coordinator import RunicTodayCoordinator, is_moving, poi_at
-from .entity import RunicVehicleEntity
+from .entity import RunicVehicleEntity, async_track_vehicles
 
 
 def _measure(*ids: int) -> Callable[[dict[str, Any]], Any]:
@@ -225,15 +225,20 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data.coordinator
     today = entry.runtime_data.today
-    entities: list[SensorEntity] = []
-    for vid, vehicle in coordinator.data.items():
-        entities += [
-            RunicVehicleSensor(coordinator, vid, d) for d in VEHICLE_SENSORS if d.exists_fn(vehicle)
+    asked_today: set[int] = set()
+
+    def entities_for(vid: int, vehicle: dict[str, Any]) -> list[SensorEntity]:
+        if today.data is not None and vid not in today.data and vid not in asked_today:
+            asked_today.add(vid)  # a vehicle added since the last "today" update: fetch its figures now
+            hass.async_create_task(today.async_request_refresh())
+        return [
+            *(RunicVehicleSensor(coordinator, vid, d) for d in VEHICLE_SENSORS if d.exists_fn(vehicle)),
+            *(RunicTodaySensor(today, vid, d) for d in TODAY_SENSORS),
+            RunicNextService(coordinator, vid),
+            RunicPoiSensor(coordinator, vid),
         ]
-        entities += [RunicTodaySensor(today, vid, d) for d in TODAY_SENSORS]
-        entities.append(RunicNextService(coordinator, vid))
-        entities.append(RunicPoiSensor(coordinator, vid))
-    async_add_entities(entities)
+
+    async_track_vehicles(entry, coordinator, async_add_entities, entities_for)
 
 
 class RunicVehicleSensor(RunicVehicleEntity, SensorEntity):

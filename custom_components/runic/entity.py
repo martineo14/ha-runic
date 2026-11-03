@@ -2,13 +2,48 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MEASURE_FIRMWARE, PORTAL_URL
 from .coordinator import RunicCoordinator
+
+
+@callback
+def async_track_vehicles(
+    entry: ConfigEntry,
+    coordinator: RunicCoordinator,
+    async_add_entities: AddEntitiesCallback,
+    entities_for: Callable[[int, dict[str, Any]], Iterable[Entity]],
+) -> None:
+    """Add entities now, and again after every update for vehicles (or values) Runic reports later.
+
+    A vehicle added to the Runic account, or a tracker that starts sending a new value, gets its
+    entities at the next update without reloading the integration.
+    """
+    added: set[str] = set()
+
+    @callback
+    def _add_new() -> None:
+        new = [
+            entity
+            for vid, vehicle in (coordinator.data or {}).items()
+            for entity in entities_for(vid, vehicle)
+            if entity.unique_id not in added
+        ]
+        if new:
+            added.update(e.unique_id for e in new)
+            async_add_entities(new)
+
+    _add_new()
+    entry.async_on_unload(coordinator.async_add_listener(_add_new))
 
 
 class RunicVehicleEntity(CoordinatorEntity[RunicCoordinator]):

@@ -30,20 +30,25 @@ from .const import (
     SIGNAL_STREAM_STATE,
 )
 from .coordinator import is_moving
-from .entity import RunicVehicleEntity
+from .entity import RunicVehicleEntity, async_track_vehicles
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: RunicConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(RunicMoving(coordinator, vid) for vid in coordinator.data)
-    async_add_entities(
-        RunicMeasureBinary(coordinator, vid, d)
-        for vid, vehicle in coordinator.data.items()
-        for d in MEASURE_BINARY_SENSORS
-        if _measure_value(vehicle, d.measure_id) is not None
-    )
+
+    def entities_for(vid: int, vehicle: dict[str, Any]) -> list[BinarySensorEntity]:
+        return [
+            RunicMoving(coordinator, vid),
+            *(
+                RunicMeasureBinary(coordinator, vid, d)
+                for d in MEASURE_BINARY_SENSORS
+                if _measure_value(vehicle, d.measure_id) is not None
+            ),
+        ]
+
+    async_track_vehicles(entry, coordinator, async_add_entities, entities_for)
     if entry.runtime_data.stream:
         async_add_entities([RunicStreamConnected(entry)])
 

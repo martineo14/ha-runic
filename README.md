@@ -64,6 +64,8 @@ Each vehicle is a device. Its page in Settings → Devices & services shows, dep
 
 The device page also shows the plate (as serial number), the tracker firmware and a **Visit** link to the
 Runic portal. Sensors appear only for values the vehicle reports: a car without CAN fuel data gets no fuel sensor.
+Vehicles added to your Runic account, and values a tracker starts reporting later, appear at the next
+update (within 5 minutes), with no reload.
 Insurance and inspection dates are not in Runic's API, so they can't be shown.
 
 **A Runic-style dashboard:** [`docs/vehicle-dashboard.yaml`](docs/vehicle-dashboard.yaml) recreates the page
